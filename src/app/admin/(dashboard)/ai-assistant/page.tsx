@@ -6,8 +6,9 @@ import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
-  Sparkles, Link2, Radar, Plus, Check, X, Loader2, ExternalLink, Globe, Search, Gauge,
+  Sparkles, Plus, Check, X, Loader2, ExternalLink, Globe, Search, Gauge,
   CheckCheck, Trash2, ImageIcon, Newspaper, Store, GalleryHorizontal, Users, Megaphone,
+  ChevronDown, ChevronRight, RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,11 @@ const CONTENT_TYPES = [
   { value: "PERANGKAT_DESA", label: "Perangkat Desa", icon: Users },
   { value: "PENGUMUMAN", label: "Pengumuman", icon: Megaphone },
 ] as const;
+
+const PLATFORM_LABEL: Record<string, string> = {
+  wordpress: "WordPress (0 kuota AI)",
+  html: "Situs umum (AI wajib ringkas)",
+};
 
 export default function AiAssistantPageWrapper() {
   return (
@@ -48,21 +54,16 @@ function AiAssistantPage() {
   const sources = sourcesData?.sources ?? [];
   const jobs = jobsData?.jobs ?? [];
   const activeSources = sources.filter((s: any) => s.isActive && s.contentType === activeType);
-  const wpSources = activeSources.filter((s: any) => s.platform === "wordpress");
   const needsReviewJobs = jobs.filter((j: any) => j.status === "NEEDS_REVIEW");
 
-  const [manualUrl, setManualUrl] = React.useState("");
   const [newSourceName, setNewSourceName] = React.useState("");
   const [newSourceUrl, setNewSourceUrl] = React.useState("");
-  const [newSourceIsWp, setNewSourceIsWp] = React.useState(false);
-  const [newSourceAutoApprove, setNewSourceAutoApprove] = React.useState(false);
-  const [runningManual, setRunningManual] = React.useState(false);
-  const [runningAutoId, setRunningAutoId] = React.useState<string | null>(null);
 
-  const [runningWpId, setRunningWpId] = React.useState<string | null>(null);
-  const [wpUseAi, setWpUseAi] = React.useState(false);
-  const [wpResultMsg, setWpResultMsg] = React.useState<string | null>(null);
+  const [runningSourceId, setRunningSourceId] = React.useState<string | null>(null);
+  const [checkResultMsg, setCheckResultMsg] = React.useState<Record<string, string>>({});
+  const [useAiRewriteMap, setUseAiRewriteMap] = React.useState<Record<string, boolean>>({});
 
+  const [tavilyOpen, setTavilyOpen] = React.useState(false);
   const [searchTopic, setSearchTopic] = React.useState("");
   const [searching, setSearching] = React.useState(false);
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
@@ -71,28 +72,31 @@ function AiAssistantPage() {
   const [approvingAll, setApprovingAll] = React.useState(false);
   const [approveAllMsg, setApproveAllMsg] = React.useState<string | null>(null);
 
-  async function runManualLink() {
-    if (!manualUrl.trim()) return;
-    setRunningManual(true);
-    await fetch("/api/ai/scrape", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "MANUAL_LINK", url: manualUrl.trim(), contentType: activeType }),
-    });
-    setManualUrl("");
-    setRunningManual(false);
-    mutateJobs();
-  }
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
+  const [resettingHistory, setResettingHistory] = React.useState(false);
 
-  async function runAutoSearch(aiSourceId: string) {
-    setRunningAutoId(aiSourceId);
-    await fetch("/api/ai/scrape", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "AUTO_SEARCH", aiSourceId, contentType: activeType }),
-    });
-    setRunningAutoId(null);
-    mutateJobs();
+  async function resetHistory() {
+    const step1 = confirm(
+      `Reset SEMUA histori scrape (AiJob) untuk tab ${activeTypeMeta.label}? Ini dipakai kalau dedupe "sudah pernah diproses" nyangkut padahal kontennya udah dihapus manual. Tindakan ini tidak bisa dibatalkan.`
+    );
+    if (!step1) return;
+    const typed = prompt('Ketik "RESET" (tanpa tanda kutip) untuk konfirmasi final:');
+    if (typed?.trim().toUpperCase() !== "RESET") {
+      alert("Konfirmasi tidak cocok, dibatalkan.");
+      return;
+    }
+    setResettingHistory(true);
+    try {
+      const res = await fetch(`/api/ai/jobs?contentType=${activeType}&confirm=RESET`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal reset");
+      alert(`${data.deleted} histori job untuk tab ${activeTypeMeta.label} sudah dihapus. Sekarang bisa di-scrape ulang.`);
+      mutateJobs();
+    } catch (err: any) {
+      alert(`Gagal: ${err.message}`);
+    } finally {
+      setResettingHistory(false);
+    }
   }
 
   async function addSource() {
@@ -103,16 +107,13 @@ function AiAssistantPage() {
       body: JSON.stringify({
         name: newSourceName,
         url: newSourceUrl,
-        type: newSourceIsWp ? "WP_JSON" : "AUTO_SEARCH",
-        platform: newSourceIsWp ? "wordpress" : undefined,
+        type: "AUTO_SEARCH",
         contentType: activeType,
-        autoApprove: newSourceAutoApprove,
+        autoApprove: false,
       }),
     });
     setNewSourceName("");
     setNewSourceUrl("");
-    setNewSourceIsWp(false);
-    setNewSourceAutoApprove(false);
     mutateSources();
   }
 
@@ -131,27 +132,29 @@ function AiAssistantPage() {
     mutateSources();
   }
 
-  async function runWpScrape(aiSourceId: string) {
-    setRunningWpId(aiSourceId);
-    setWpResultMsg(null);
-    const res = await fetch("/api/ai/scrape-wp", {
+  async function checkSource(source: any) {
+    setRunningSourceId(source.id);
+    setCheckResultMsg((prev) => ({ ...prev, [source.id]: "" }));
+    const res = await fetch("/api/ai/check-source", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ aiSourceId, useAi: wpUseAi }),
+      body: JSON.stringify({ aiSourceId: source.id, useAiRewrite: !!useAiRewriteMap[source.id] }),
     });
     const data = await res.json();
-    setRunningWpId(null);
+    setRunningSourceId(null);
+
+    let msg: string;
     if (data.error) {
-      setWpResultMsg(`Gagal: ${data.error}`);
+      msg = `Gagal: ${data.error}`;
     } else if (data.autoApprove) {
-      setWpResultMsg(
-        `${data.published} post langsung dipublish otomatis${data.skipped ? `, ${data.skipped} dilewati (sudah ada)` : ""}.`
-      );
+      msg = `${data.published} post langsung dipublish otomatis${data.skipped ? `, ${data.skipped} dilewati (sudah ada)` : ""}.`;
+    } else if (data.created === 0) {
+      msg = data.message ?? "Tidak ada post baru.";
     } else {
-      setWpResultMsg(
-        `${data.created} post baru diimpor, urut sesuai tanggal aslinya${data.skipped ? `, ${data.skipped} dilewati (sudah ada)` : ""}. Cek di "Perlu Review" di bawah.`
-      );
+      msg = `${data.created} post baru diimpor${data.skipped ? `, ${data.skipped} dilewati (sudah ada)` : ""}. Cek di "Perlu Review" di bawah.`;
     }
+    setCheckResultMsg((prev) => ({ ...prev, [source.id]: msg }));
+
     mutateJobs();
     mutateQuota();
     mutateSources();
@@ -210,7 +213,8 @@ function AiAssistantPage() {
           <Sparkles className="h-6 w-6 text-primary" /> AI Assistant
         </h1>
         <p className="text-sm text-muted-foreground">
-          Bantu isi konten otomatis dari sumber resmi — kasih link manual, biarkan AI cari sendiri, scrape situs WordPress (0 kuota AI, gambar &amp; tanggal asli ikut terbawa), atau cari info terbaru lewat search engine. Bisa disetel otomatis publish supaya admin gak perlu review satu-satu.
+          Tempel 1 URL sumber (halaman &quot;Berita Terbaru&quot; atau link 1 artikel, sama saja) — sistem otomatis
+          deteksi WordPress atau bukan, lalu ambil post barunya. Bisa disetel otomatis publish supaya admin gak perlu review satu-satu.
         </p>
       </div>
 
@@ -264,135 +268,100 @@ function AiAssistantPage() {
         </Card>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        {/* Opsi 1: Manual Link */}
-        <Card>
-          <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <Link2 className="h-5 w-5 text-primary" />
-            <div>
-              <CardTitle className="text-base">Opsi 1 — Kasih Link Manual</CardTitle>
-              <p className="text-xs text-muted-foreground">Tempel URL sumber resmi, AI akan ringkas + siapkan draft {activeTypeMeta.label}.</p>
-            </div>
-          </CardHeader>
-          <CardContent className="flex gap-2">
-            <Input
-              placeholder="https://jenangan.ponorogo.go.id/berita/..."
-              value={manualUrl}
-              onChange={(e) => setManualUrl(e.target.value)}
-            />
-            <Button onClick={runManualLink} disabled={runningManual}>
-              {runningManual ? <Loader2 className="h-4 w-4 animate-spin" /> : "Proses"}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Opsi 2: Auto Search dari sumber terdaftar */}
-        <Card>
-          <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <Radar className="h-5 w-5 text-primary" />
-            <div>
-              <CardTitle className="text-base">Opsi 2 — AI Cari Sendiri</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Pilih sumber resmi terdaftar untuk tab {activeTypeMeta.label}, AI cek info terbaru berdasarkan tanggal.
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {activeSources.length === 0 && (
-              <p className="text-sm text-muted-foreground">Belum ada sumber terdaftar untuk tab {activeTypeMeta.label}. Tambahkan di bawah.</p>
-            )}
-            {activeSources.map((s: any) => (
-              <div key={s.id} className="flex items-center justify-between gap-2 rounded-xl border border-border p-3">
+      {/* Kartu Sumber — gabungan Opsi 1-3 lama */}
+      <Card>
+        <CardHeader className="flex-row items-center gap-3 space-y-0">
+          <Globe className="h-5 w-5 text-primary" />
+          <div>
+            <CardTitle className="text-base">Sumber</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Tempel URL sumber resmi untuk tab {activeTypeMeta.label}. Klik &quot;Cek &amp; Ambil Post Baru&quot; — sistem
+              otomatis deteksi WordPress (0 kuota AI) atau situs umum (di-scrape lalu wajib diringkas AI), dan otomatis
+              bedain halaman listing vs 1 artikel tunggal.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {activeSources.length === 0 && (
+            <p className="text-sm text-muted-foreground">Belum ada sumber terdaftar untuk tab {activeTypeMeta.label}. Tambahkan di bawah.</p>
+          )}
+          {activeSources.map((s: any) => (
+            <div key={s.id} className="space-y-2 rounded-xl border border-border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{s.name}</p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="truncate text-sm font-medium">{s.name}</p>
+                    {s.platform ? (
+                      <Badge variant="outline" className="text-[10px]">{PLATFORM_LABEL[s.platform] ?? s.platform}</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px]">Belum dicek</Badge>
+                    )}
+                  </div>
                   <p className="truncate text-xs text-muted-foreground">{s.url}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <Button size="sm" onClick={() => runAutoSearch(s.id)} disabled={runningAutoId === s.id}>
-                    {runningAutoId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Cek Sekarang"}
+                  <Button size="sm" onClick={() => checkSource(s)} disabled={runningSourceId === s.id}>
+                    {runningSourceId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Cek &amp; Ambil Post Baru
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => removeSource(s.id)} className="text-destructive">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
-            ))}
 
-            <div className="flex flex-col gap-2 border-t border-border pt-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Input placeholder="Nama sumber (mis. Website Kecamatan Jenangan)" value={newSourceName} onChange={(e) => setNewSourceName(e.target.value)} />
-                <Input placeholder="URL sumber" value={newSourceUrl} onChange={(e) => setNewSourceUrl(e.target.value)} />
-                <Button variant="outline" onClick={addSource} className="shrink-0">
-                  <Plus className="h-4 w-4" /> Tambah
-                </Button>
-              </div>
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                 <label className="flex items-center gap-1.5">
-                  <input type="checkbox" checked={newSourceIsWp} onChange={(e) => setNewSourceIsWp(e.target.checked)} />
-                  Situs WordPress
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <input type="checkbox" checked={newSourceAutoApprove} onChange={(e) => setNewSourceAutoApprove(e.target.checked)} />
+                  <input type="checkbox" checked={!!s.autoApprove} onChange={() => toggleAutoApprove(s)} />
                   Otomatis publish (admin gak perlu review manual)
                 </label>
-                <span>Sumber ini akan mengisi tab <strong>{activeTypeMeta.label}</strong>.</span>
+                {(!s.platform || s.platform === "wordpress") && (
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={!!useAiRewriteMap[s.id]}
+                      onChange={(e) => setUseAiRewriteMap((prev) => ({ ...prev, [s.id]: e.target.checked }))}
+                    />
+                    Rapikan pakai AI (cuma berlaku kalau sumbernya WordPress)
+                  </label>
+                )}
               </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Opsi 3: Scraper situs WordPress (wp-json, 0 kuota AI) */}
-        <Card>
-          <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <Globe className="h-5 w-5 text-primary" />
-            <div>
-              <CardTitle className="text-base">Opsi 3 — Scraper Situs Resmi (WordPress)</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Tarik semua post lewat REST API WordPress-nya langsung — data terstruktur (judul, isi, <strong>gambar unggulan &amp; gambar di dalam post</strong>, tanggal asli), <strong>gak butuh AI sama sekali</strong> (0 kuota Gemini). Urutan hasil scrape otomatis mengikuti tanggal post asli. Tandai sumber sebagai &quot;Situs WordPress&quot; dulu di kartu sebelah.
-              </p>
+              {checkResultMsg[s.id] && <p className="text-xs text-muted-foreground">{checkResultMsg[s.id]}</p>}
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {wpSources.length === 0 && (
-              <p className="text-sm text-muted-foreground">Belum ada sumber bertipe WordPress untuk tab {activeTypeMeta.label}. Tambahkan lewat form di kartu sebelah.</p>
-            )}
-            {wpSources.map((s: any) => (
-              <div key={s.id} className="space-y-2 rounded-xl border border-border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{s.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{s.url}</p>
-                  </div>
-                  <Button size="sm" onClick={() => runWpScrape(s.id)} disabled={runningWpId === s.id}>
-                    {runningWpId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Scrape Sekarang"}
-                  </Button>
-                </div>
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <input type="checkbox" checked={s.autoApprove} onChange={() => toggleAutoApprove(s)} />
-                  Otomatis publish tiap hasil scrape (admin gak perlu acc satu-satu)
-                </label>
-              </div>
-            ))}
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <input type="checkbox" checked={wpUseAi} onChange={(e) => setWpUseAi(e.target.checked)} />
-              Rapikan hasil pakai AI (batch, hemat kuota) — kalau tidak dicentang, judul & isi dipakai apa adanya dari WP
-            </label>
-            {wpResultMsg && <p className="text-sm text-muted-foreground">{wpResultMsg}</p>}
-          </CardContent>
-        </Card>
+          ))}
 
-        {/* Opsi 4: Cari info terbaru lewat search engine (hemat) */}
-        <Card>
-          <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <Search className="h-5 w-5 text-primary" />
-            <div>
-              <CardTitle className="text-base">Opsi 4 — Cari di Search Engine (Tavily)</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Cek info/berita terbaru tentang desa yang belum ada di web sendiri (pakai Tavily, gratis 1.000 kredit/bulan). Hemat: 1 pencarian = 1 kredit, hasil yang sudah pernah diproses otomatis dibuang, kuota bulanan dibatasi.
-              </p>
+          <div className="flex flex-col gap-2 border-t border-border pt-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input placeholder="Nama sumber (mis. Website Kecamatan Jenangan)" value={newSourceName} onChange={(e) => setNewSourceName(e.target.value)} />
+              <Input placeholder="URL — halaman listing atau link 1 artikel" value={newSourceUrl} onChange={(e) => setNewSourceUrl(e.target.value)} />
+              <Button variant="outline" onClick={addSource} className="shrink-0">
+                <Plus className="h-4 w-4" /> Tambah
+              </Button>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Sumber ini akan mengisi tab <strong>{activeTypeMeta.label}</strong>. Toggle &quot;Otomatis publish&quot; bisa diatur belakangan lewat kartu sumber di atas.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Cari Topik Lain (Tavily) — collapsed/opsional */}
+      <Card>
+        <button
+          type="button"
+          onClick={() => setTavilyOpen((v) => !v)}
+          className="flex w-full items-center gap-3 p-4 text-left"
+        >
+          {tavilyOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          <Search className="h-5 w-5 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <CardTitle className="text-base">Cari Topik Lain (Tavily)</CardTitle>
+            <p className="text-xs text-muted-foreground">Cari info/berita terbaru yang belum ada sumbernya sendiri — opsional.</p>
+          </div>
+        </button>
+        {tavilyOpen && (
+          <CardContent className="space-y-3 pt-0">
             <div className="flex gap-2">
               <Input
                 placeholder="Topik (kosongkan = 'Desa Tanjungsari Kecamatan Jenangan')"
@@ -422,8 +391,8 @@ function AiAssistantPage() {
               </div>
             )}
           </CardContent>
-        </Card>
-      </div>
+        )}
+      </Card>
 
       {/* Antrian review AI job */}
       <Card>
@@ -446,6 +415,29 @@ function AiAssistantPage() {
             return visibleJobs.map((job: any) => <AiJobCard key={job.id} job={job} onDone={() => mutateJobs()} />);
           })()}
         </CardContent>
+      </Card>
+
+      {/* Lanjutan — collapsed */}
+      <Card>
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          className="flex w-full items-center gap-3 p-4 text-left"
+        >
+          {advancedOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          <div>
+            <CardTitle className="text-base">Lanjutan</CardTitle>
+            <p className="text-xs text-muted-foreground">Aksi yang jarang dipakai & tidak bisa dibatalkan.</p>
+          </div>
+        </button>
+        {advancedOpen && (
+          <CardContent className="pt-0">
+            <Button size="sm" variant="outline" onClick={resetHistory} disabled={resettingHistory} className="text-destructive">
+              {resettingHistory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Reset Histori Scrape ({activeTypeMeta.label})
+            </Button>
+          </CardContent>
+        )}
       </Card>
     </div>
   );

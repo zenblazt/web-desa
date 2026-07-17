@@ -50,6 +50,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "URL wajib diisi" }, { status: 400 });
     }
 
+    // Dedupe: kalau URL ini udah pernah masuk Berita/AiJob, jangan buang-buang
+    // extract+kuota AI lagi.
+    const [existingBerita, existingJob] = await Promise.all([
+      prisma.berita.findFirst({ where: { sourceUrl: targetUrl } }),
+      prisma.aiJob.findFirst({ where: { sourceUrl: targetUrl } }),
+    ]);
+    if (existingBerita || existingJob) {
+      return NextResponse.json(
+        { error: "URL ini sudah pernah diproses sebelumnya.", duplicate: true },
+        { status: 409 }
+      );
+    }
+
     const job = await prisma.aiJob.create({
       data: {
         sourceType: type,
