@@ -1,17 +1,20 @@
 /**
  * Web Search — "cek berita terbaru yang belum ada di web sendiri"
  * ------------------------------------------------------------------
- * Pakai Google Programmable Search Engine (Custom Search JSON API):
- *   - Gratis 100 query/hari, no credit card.
- *   - Hasil JSON rapi (title, link, snippet) — gak perlu AI buat parsing.
- *   - Setup: https://programmablesearchengine.google.com (buat search engine,
- *     scope ke "search the entire web"), lalu ambil API key di
- *     https://console.cloud.google.com (aktifkan "Custom Search API").
+ * Pakai Tavily Search API:
+ *   - Gratis 1.000 kredit/BULAN, isi ulang otomatis tiap bulan (bukan
+ *     sekali habis kayak provider lain), tanpa kartu kredit buat daftar.
+ *   - Hasil sudah dibersihkan (title, url, content ringkas) — gak perlu
+ *     scrape/parsing HTML tambahan.
+ *   - Setup: daftar & ambil API key gratis di https://app.tavily.com
  *
- * Biar HEMAT beneran (bukan cuma hemat AI, tapi hemat query search juga):
- *   1. Kuota harian di-cap sendiri di bawah limit gratis (default 90/100),
+ * (Sebelumnya pakai Google Custom Search JSON API, tapi API itu SUDAH
+ * DITUTUP untuk pelanggan baru per awal 2026 — jadi diganti ke Tavily.)
+ *
+ * Biar HEMAT beneran (bukan cuma hemat AI, tapi hemat kredit search juga):
+ *   1. Kuota bulanan di-cap sendiri di bawah limit gratis (default 900/1000),
  *      dicatat di tabel SearchQuota — begitu limit habis, request ditolak
- *      dengan pesan jelas, gak nunggu 429 dari Google.
+ *      dengan pesan jelas, gak nunggu error dari Tavily.
  *   2. Dedupe: URL yang sudah pernah masuk AiJob/Berita di-skip otomatis,
  *      jadi gak query ulang topik yang sama / gak proses AI utk URL lama.
  *   3. 1 pemanggilan `searchFreshNews` = 1 query saja (bukan multi-query),
@@ -26,21 +29,21 @@ export interface SearchResultItem {
   snippet: string;
 }
 
-const DAILY_LIMIT = Number(process.env.SEARCH_ENGINE_DAILY_LIMIT ?? 90);
+const MONTHLY_LIMIT = Number(process.env.SEARCH_ENGINE_MONTHLY_LIMIT ?? 900);
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+function monthKey() {
+  return new Date().toISOString().slice(0, 7); // YYYY-MM
 }
 
-/** Cek & increment kuota harian pencarian. Lempar error kalau sudah habis. */
+/** Cek & increment kuota bulanan pencarian. Lempar error kalau sudah habis. */
 async function consumeSearchQuota(): Promise<void> {
-  const key = todayKey();
+  const key = monthKey();
   const existing = await prisma.searchQuota.findUnique({ where: { date: key } });
 
   if (existing) {
-    if (existing.count >= DAILY_LIMIT) {
+    if (existing.count >= MONTHLY_LIMIT) {
       throw new Error(
-        `Kuota search engine hari ini sudah habis (${existing.count}/${DAILY_LIMIT}). Coba lagi besok.`
+        `Kuota search engine bulan ini sudah habis (${existing.count}/${MONTHLY_LIMIT}). Reset otomatis awal bulan depan.`
       );
     }
     await prisma.searchQuota.update({ where: { date: key }, data: { count: { increment: 1 } } });
@@ -50,42 +53,44 @@ async function consumeSearchQuota(): Promise<void> {
 }
 
 export async function getSearchQuotaStatus() {
-  const key = todayKey();
+  const key = monthKey();
   const existing = await prisma.searchQuota.findUnique({ where: { date: key } });
-  return { usedToday: existing?.count ?? 0, dailyLimit: DAILY_LIMIT };
+  return { usedThisMonth: existing?.count ?? 0, monthlyLimit: MONTHLY_LIMIT };
 }
 
-/** Query mentah ke Google Custom Search JSON API (1x panggil = 1x kuota) */
+/** Query mentah ke Tavily Search API (1x panggil = 1x kredit, basic search) */
 export async function searchWeb(query: string, num = 5): Promise<SearchResultItem[]> {
-  const apiKey = process.env.GOOGLE_CSE_API_KEY;
-  const cx = process.env.GOOGLE_CSE_CX;
-  if (!apiKey || !cx) {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
     throw new Error(
-      "GOOGLE_CSE_API_KEY / GOOGLE_CSE_CX belum diset. Bikin dulu di https://programmablesearchengine.google.com"
+      "TAVILY_API_KEY belum diset. Daftar gratis (1.000 kredit/bulan) di https://app.tavily.com"
     );
   }
 
   await consumeSearchQuota();
 
-  const params = new URLSearchParams({
-    key: apiKey,
-    cx,
-    q: query,
-    num: String(Math.min(num, 10)),
+  const res = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query,
+      search_depth: "basic", // "basic" = 1 kredit/request, "advanced" = 2 kredit/request
+      max_results: Math.min(num, 10),
+    }),
   });
 
-  const res = await fetch(`https://www.googleapis.com/customsearch/v1?${params.toString()}`);
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Search engine gagal (${res.status}): ${body}`);
+    throw new Error(`Tavily search gagal (${res.status}): ${body}`);
   }
 
   const data = await res.json();
-  const items = (data.items ?? []) as any[];
+  const items = (data.results ?? []) as any[];
   return items.map((it) => ({
     title: it.title,
-    url: it.link,
-    snippet: it.snippet ?? "",
+    url: it.url,
+    snippet: (it.content ?? "").slice(0, 300),
   }));
 }
 
@@ -109,7 +114,6 @@ export async function searchFreshNews(
     [...knownBeritaUrls, ...knownJobUrls].map((r) => r.sourceUrl).filter(Boolean) as string[]
   );
 
-  // Buang juga domain situs sendiri (gak perlu "temukan" berita sendiri lewat search)
   const ownDomain = (() => {
     try {
       return new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost").hostname;

@@ -153,7 +153,7 @@ export default function AiAssistantPage() {
                 <span className="text-muted-foreground">•</span>
                 <span className="font-medium">Search engine:</span>
                 <span>
-                  {quotaData.search.usedToday}/{quotaData.search.dailyLimit} query hari ini
+                  {quotaData.search.usedThisMonth}/{quotaData.search.monthlyLimit} query bulan ini
                 </span>
               </>
             )}
@@ -263,9 +263,9 @@ export default function AiAssistantPage() {
           <CardHeader className="flex-row items-center gap-3 space-y-0">
             <Search className="h-5 w-5 text-primary" />
             <div>
-              <CardTitle className="text-base">Opsi 4 — Cari di Search Engine</CardTitle>
+              <CardTitle className="text-base">Opsi 4 — Cari di Search Engine (Tavily)</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Cek info/berita terbaru tentang desa yang belum ada di web sendiri. Hemat: 1 pencarian = 1 query, hasil yang sudah pernah diproses otomatis dibuang, kuota harian dibatasi.
+                Cek info/berita terbaru tentang desa yang belum ada di web sendiri (pakai Tavily, gratis 1.000 kredit/bulan). Hemat: 1 pencarian = 1 kredit, hasil yang sudah pernah diproses otomatis dibuang, kuota bulanan dibatasi.
               </p>
             </div>
           </CardHeader>

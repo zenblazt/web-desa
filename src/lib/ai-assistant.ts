@@ -22,9 +22,10 @@ import * as cheerio from "cheerio";
 import { generateSlug } from "@/lib/utils";
 import { withGeminiRetry, geminiLimiter } from "@/lib/rate-limiter";
 
-// gemini-2.5-flash-lite = RPM & RPD paling longgar di free tier AI Studio saat ini.
+// gemini-3.1-flash-lite = model ringan/cepat generasi terbaru (GA).
+// gemini-2.5-flash-lite sudah TIDAK BISA dipakai API key baru per pertengahan 2026.
 // Bisa dioverride lewat env GEMINI_MODEL kalau mau pakai model lain.
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 /** Status limiter saat ini, buat ditampilkan di admin panel */

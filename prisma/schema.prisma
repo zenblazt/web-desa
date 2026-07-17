@@ -336,7 +336,7 @@ model AiJob {
 }
 
 model SearchQuota {
-  date  String @id // format YYYY-MM-DD
+  date  String @id // format YYYY-MM (kuota bulanan, sesuai siklus reset Tavily)
   count Int    @default(0)
 
   @@map("search_quota")

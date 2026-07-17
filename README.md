@@ -93,8 +93,9 @@ Sesuai workflow yang diminta, ada **2 opsi sumber**, keduanya dikelola dari
 1. **Opsi 1 — Manual Link**: admin tempel URL berita/pengumuman resmi
    (misalnya website kecamatan). AI (`POST /api/ai/scrape` dengan
    `type: "MANUAL_LINK"`) akan fetch halaman, ekstrak teks utama, lalu
-   kirim ke Gemini API (model `gemini-2.0-flash`, gratis di AI Studio) untuk
-   diringkas + dibuatkan judul SEO, meta description, tag, dan slug.
+   kirim ke Gemini API (model `gemini-3.1-flash-lite` via env `GEMINI_MODEL`,
+   gratis di AI Studio) untuk diringkas + dibuatkan judul SEO, meta
+   description, tag, dan slug.
 
 2. **Opsi 2 — Auto Search**: admin mendaftarkan sumber resmi ke tabel
    `AiSource` (nama + URL, tipe `AUTO_SEARCH`). Admin tinggal klik
@@ -107,8 +108,9 @@ meta description, tag) di dashboard, baru pilih **Approve & Publish** atau
 **Simpan sebagai Draft**. Ini sesuai step 4–5 di spec awal (Admin review →
 Publish).
 
-> Ganti model di `src/lib/ai-assistant.ts` (`GEMINI_MODEL` constant) bila
-> perlu (misal ke `gemini-2.0-flash-lite` biar makin hemat kuota gratis).
+> Ganti model lewat env `GEMINI_MODEL` bila perlu — cek daftar model aktif
+> terbaru di https://ai.google.dev/gemini-api/docs/models (model versi 2.0
+> dan 2.5 sudah mulai di-deprecate untuk API key baru, per pertengahan 2026).
 > Ekstraksi konten pakai heuristik sederhana (`cheerio`, ambil semua `<p>`
 > yang cukup panjang) — untuk sumber yang strukturnya rumit, sesuaikan
 > selector di `extractFromUrl()`.
@@ -154,8 +156,11 @@ perangkat desa yang isi manual), berikut yang masih perlu kamu putuskan/atur:
    AI Assistant admin. Schema Prisma berubah untuk fitur ini (`SourceType`
    tambah `WP_JSON`/`SEARCH_ENGINE`, tabel baru `search_quota`) — **jalankan
    ulang `npx prisma db push` setelah deploy update ini**. Opsi 4 butuh
-   `GOOGLE_CSE_API_KEY` & `GOOGLE_CSE_CX` (lihat `.env.example`); tanpa itu,
-   Opsi 3 (WordPress) tetap jalan normal karena tidak butuh API key tambahan.
+   `TAVILY_API_KEY` (gratis 1.000 kredit/bulan, daftar di
+   https://app.tavily.com — lihat `.env.example`); tanpa itu, Opsi 3
+   (WordPress) tetap jalan normal karena tidak butuh API key tambahan.
+   *(Catatan: bukan pakai Google Custom Search — API itu sudah ditutup
+   untuk pelanggan baru per 2026.)*
 
 ## Deploy ke Railway
 
