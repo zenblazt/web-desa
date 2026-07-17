@@ -3,20 +3,23 @@
 import * as React from "react";
 import useSWR from "swr";
 import Image from "next/image";
-import { Trash2, Plus, User2 } from "lucide-react";
+import { Trash2, Plus, User2, Pencil, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUploader } from "@/components/admin/image-uploader";
 import { AiTabWidget } from "@/components/admin/ai-tab-widget";
+import { Dialog, useModal } from "@/components/ui/modal";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function AdminPerangkatPage() {
   const { data, mutate } = useSWR("/api/perangkat", fetcher);
   const items = data?.items ?? [];
+  const modal = useModal();
 
   const [form, setForm] = React.useState({ name: "", position: "", photo: "", phone: "", email: "", bio: "", level: "1" });
+  const [editItem, setEditItem] = React.useState<any>(null);
 
   async function add() {
     if (!form.name.trim() || !form.position.trim()) return;
@@ -39,7 +42,13 @@ export default function AdminPerangkatPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Hapus data perangkat ini?")) return;
+    const ok = await modal.confirm({
+      title: "Hapus perangkat?",
+      description: "Data perangkat ini akan dihapus permanen.",
+      confirmLabel: "Hapus",
+      danger: true,
+    });
+    if (!ok) return;
     await fetch(`/api/perangkat/${id}`, { method: "DELETE" });
     mutate();
   }
@@ -115,6 +124,9 @@ export default function AdminPerangkatPage() {
                   className="h-8 w-16"
                 />
               </label>
+              <Button variant="ghost" size="icon" onClick={() => setEditItem(p)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" onClick={() => remove(p.id)} className="text-destructive">
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -122,6 +134,69 @@ export default function AdminPerangkatPage() {
           </div>
         ))}
       </Card>
+
+      <EditPerangkatModal item={editItem} onClose={() => setEditItem(null)} onSaved={mutate} />
+      {modal.element}
     </div>
+  );
+}
+
+function EditPerangkatModal({ item, onClose, onSaved }: { item: any; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = React.useState({ name: "", position: "", photo: "", phone: "", email: "", bio: "" });
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (item) {
+      setForm({
+        name: item.name ?? "",
+        position: item.position ?? "",
+        photo: item.photo ?? "",
+        phone: item.phone ?? "",
+        email: item.email ?? "",
+        bio: item.bio ?? "",
+      });
+    }
+  }, [item]);
+
+  async function save() {
+    if (!item) return;
+    setSaving(true);
+    await fetch(`/api/perangkat/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    setSaving(false);
+    onSaved();
+    onClose();
+  }
+
+  return (
+    <Dialog open={!!item} onClose={onClose} title="Edit Perangkat" maxWidth="max-w-lg">
+      <div className="space-y-3">
+        <ImageUploader value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input placeholder="Nama lengkap" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <Input placeholder="Jabatan" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input placeholder="No. telepon" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <Input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        </div>
+        <textarea
+          placeholder="Deskripsi singkat tugas jabatan"
+          value={form.bio}
+          onChange={(e) => setForm({ ...form, bio: e.target.value })}
+          rows={3}
+          className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" onClick={onClose}>Batal</Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Simpan
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
