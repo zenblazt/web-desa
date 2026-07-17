@@ -38,9 +38,9 @@ interface ExtractedContent {
   title: string;
   text: string;
   url: string;
-  featuredImage: string | null;
-  contentImages: string[];
-  originalPublishedAt: string | null;
+  featuredImage?: string | null;
+  contentImages?: string[];
+  originalPublishedAt?: string | null;
 }
 
 function resolveUrl(src: string, base: string): string | null {
