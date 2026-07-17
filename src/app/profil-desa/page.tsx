@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "Sejarah, visi misi, dan data wilayah Desa Tanjungsari, Kecamatan Jenangan.",
 };
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default async function ProfilDesaPage() {
   const profil = await prisma.profilDesa.findFirst();

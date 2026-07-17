@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "Daftar struktur dan perangkat Desa Tanjungsari, Kecamatan Jenangan.",
 };
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default async function PerangkatDesaPage() {
   const perangkat = await prisma.perangkatDesa.findMany({

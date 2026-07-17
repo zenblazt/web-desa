@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { BeritaForm } from "@/components/admin/berita-form";
 
+export const dynamic = "force-dynamic";
+
 interface Props { params: { id: string } }
 
 export default async function EditBeritaPage({ params }: Props) {

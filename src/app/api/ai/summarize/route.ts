@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 /**
  * POST /api/ai/summarize  (dipakai untuk "Approve & Publish" dari dashboard)
  * body: { jobId: string, action: "approve" | "reject", editedFields?: {...}, publish?: boolean }

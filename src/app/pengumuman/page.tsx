@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "Pengumuman resmi terbaru dari Pemerintah Desa Tanjungsari.",
 };
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function PengumumanPage() {
   const items = await prisma.pengumuman.findMany({

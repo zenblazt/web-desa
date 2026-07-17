@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateSlug } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const items = await prisma.berita.findMany({ orderBy: { createdAt: "desc" }, include: { seoMeta: true } });
   return NextResponse.json({ items });

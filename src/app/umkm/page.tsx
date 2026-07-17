@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "Direktori UMKM (Usaha Mikro Kecil Menengah) warga Desa Tanjungsari.",
 };
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default async function UmkmPage() {
   const items = await prisma.umkm.findMany({ where: { isActive: true }, orderBy: { isFeatured: "desc" } });

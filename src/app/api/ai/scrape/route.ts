@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { extractFromUrl, summarizeAndGenerateSeo } from "@/lib/ai-assistant";
 
+export const dynamic = "force-dynamic";
+
 /**
  * POST /api/ai/scrape
  * body opsi 1 (MANUAL_LINK): { type: "MANUAL_LINK", url: string, aiSourceId?: string }

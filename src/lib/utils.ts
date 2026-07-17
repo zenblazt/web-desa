@@ -6,6 +6,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Ambil site URL dari env dengan aman. Kalau admin lupa isi protokol
+ * (mis. "desa-tanjungsari.up.railway.app" tanpa "https://"), otomatis
+ * ditambahkan supaya `new URL()` tidak crash saat build.
+ */
+export function getSiteUrl() {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+}
+
 export function generateSlug(text: string) {
   return slugify(text, { lower: true, strict: true, locale: "id" });
 }

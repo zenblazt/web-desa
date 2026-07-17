@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "Hubungi Kantor Desa Tanjungsari, Kecamatan Jenangan.",
 };
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default async function KontakPage() {
   const kontak = await prisma.kontak.findFirst();

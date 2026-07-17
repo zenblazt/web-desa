@@ -7,7 +7,7 @@ import { UmkmHighlight } from "@/components/home/umkm-highlight";
 import { GalleryPreview } from "@/components/home/gallery-preview";
 
 // ISR: refresh tiap 60 detik supaya tetap cepat tapi konten cukup up-to-date
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default function HomePage() {
   return (

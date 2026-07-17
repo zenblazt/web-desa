@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SearchBar } from "@/components/home/search-bar";
 
+export const dynamic = "force-dynamic";
+
 interface Props { searchParams: { q?: string } }
 
 export const metadata = { title: "Hasil Pencarian" };

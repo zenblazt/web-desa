@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: "Potensi pertanian, wisata, dan kerajinan Desa Tanjungsari, Kecamatan Jenangan.",
 };
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default async function PotensiDesaPage() {
   const items = await prisma.potensiDesa.findMany({ where: { isActive: true }, orderBy: { order: "asc" } });

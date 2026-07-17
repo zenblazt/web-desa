@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: "Dokumentasi foto kegiatan dan keindahan Desa Tanjungsari.",
 };
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default async function GaleriPage() {
   const photos = await prisma.galeri.findMany({ orderBy: { order: "asc" } });

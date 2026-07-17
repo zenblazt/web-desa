@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateSlug } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const items = await prisma.layanan.findMany({ orderBy: { order: "asc" } });
   return NextResponse.json({ items });

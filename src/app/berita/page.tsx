@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description: "Kumpulan berita dan kabar terbaru seputar Desa Tanjungsari, Kecamatan Jenangan.",
 };
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function BeritaPage() {
   const news = await prisma.berita.findMany({

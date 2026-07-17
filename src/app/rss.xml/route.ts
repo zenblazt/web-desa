@@ -1,6 +1,8 @@
 import RSS from "rss";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://desatanjungsari.id";
 
 export async function GET() {

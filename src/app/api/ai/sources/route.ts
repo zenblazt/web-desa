@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET  /api/ai/sources  -> list sumber (link resmi yang admin daftarkan untuk AI)
  * POST /api/ai/sources  -> tambah sumber baru { name, url, type }

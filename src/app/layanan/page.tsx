@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "Daftar layanan administrasi dan publik Desa Tanjungsari beserta syarat dan prosedurnya.",
 };
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default async function LayananPage() {
   const services = await prisma.layanan.findMany({

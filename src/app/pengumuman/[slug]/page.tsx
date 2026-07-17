@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { formatDateTime } from "@/lib/utils";
 import { Paperclip } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 interface Props { params: { slug: string } }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
