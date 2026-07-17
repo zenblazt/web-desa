@@ -26,7 +26,7 @@ export async function LatestNews() {
           href="/berita"
         />
 
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
           {news.map((item) => (
             <Link key={item.id} href={`/berita/${item.slug}`}>
               <Card className="h-full overflow-hidden p-0">

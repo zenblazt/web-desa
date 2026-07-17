@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import { AiTabWidget } from "@/components/admin/ai-tab-widget";
+import { DeleteAllBeritaButton } from "@/components/admin/delete-all-berita-button";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function AdminBeritaPage() {
           <p className="text-sm text-muted-foreground">Kelola semua berita desa.</p>
         </div>
         <div className="flex gap-2">
+          <DeleteAllBeritaButton count={items.length} />
           <Button asChild variant="outline">
             <Link href="/admin/ai-assistant"><Sparkles className="h-4 w-4" /> Buat via AI</Link>
           </Button>

@@ -80,11 +80,24 @@ export async function extractFromUrl(url: string): Promise<ExtractedContent> {
     $("h1").first().text().trim() ||
     $("title").text().trim();
 
-  $("script, style, nav, footer, header, iframe, .ads, .advertisement").remove();
+  $("script, style, nav, footer, header, iframe, .ads, .advertisement, .related, .sidebar, .widget").remove();
 
-  // Gambar-gambar di dalam konten artikel (bukan header/nav/footer/iklan yang sudah dibuang di atas).
+  // Cari wrapper artikel yang paling spesifik dulu (article > .post-content > .content > main),
+  // biar gambar & paragraf yang diambil BENAR-BENAR dari isi berita, bukan ikut kebawa
+  // thumbnail "artikel terkait"/sidebar yang kadang nempel di dalam <main>.
+  const scopeSelectors = ["article", ".post-content", ".entry-content", ".content", "main"];
+  let $scope = $("body");
+  for (const sel of scopeSelectors) {
+    const candidate = $(sel).first();
+    if (candidate.length && candidate.text().trim().length > 150) {
+      $scope = candidate;
+      break;
+    }
+  }
+
+  // Gambar-gambar di dalam konten artikel (dari scope yang sudah dipersempit di atas).
   const contentImages: string[] = [];
-  $("article img, main img, .content img, .post-content img").each((_, el) => {
+  $scope.find("img").each((_, el) => {
     const src = $(el).attr("src") || $(el).attr("data-src");
     if (!src || src.startsWith("data:")) return;
     const resolved = resolveUrl(src, url);
@@ -93,9 +106,9 @@ export async function extractFromUrl(url: string): Promise<ExtractedContent> {
     }
   });
 
-  // Ambil paragraf-paragraf utama (heuristik sederhana, boleh diganti readability lib)
+  // Ambil paragraf-paragraf utama dari scope yang sama (heuristik sederhana, boleh diganti readability lib)
   const paragraphs: string[] = [];
-  $("article p, main p, .content p, .post-content p, p").each((_, el) => {
+  $scope.find("p").each((_, el) => {
     const t = $(el).text().trim();
     if (t.length > 40) paragraphs.push(t);
   });

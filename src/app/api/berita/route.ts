@@ -11,6 +11,36 @@ export async function GET() {
   return NextResponse.json({ items });
 }
 
+/**
+ * DELETE /api/berita?confirm=HAPUS_SEMUA
+ * Hapus SEMUA berita sekaligus. Sengaja butuh query "confirm" yang spesifik
+ * (bukan cuma DELETE tanpa syarat) supaya gak ke-trigger gak sengaja.
+ */
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const confirm = req.nextUrl.searchParams.get("confirm");
+  if (confirm !== "HAPUS_SEMUA") {
+    return NextResponse.json({ error: "Konfirmasi tidak valid" }, { status: 400 });
+  }
+
+  const beritaList = await prisma.berita.findMany({ select: { id: true, seoMetaId: true } });
+  const seoMetaIds = beritaList.map((b) => b.seoMetaId).filter(Boolean) as string[];
+
+  const result = await prisma.$transaction(async (tx) => {
+    // Lepas dulu referensi dari AiJob supaya gak kena constraint pas berita dihapus.
+    await tx.aiJob.updateMany({ where: { beritaId: { not: null } }, data: { beritaId: null } });
+    const deleted = await tx.berita.deleteMany({});
+    if (seoMetaIds.length > 0) {
+      await tx.seoMeta.deleteMany({ where: { id: { in: seoMetaIds } } });
+    }
+    return deleted;
+  });
+
+  return NextResponse.json({ deleted: result.count });
+}
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

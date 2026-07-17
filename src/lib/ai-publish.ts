@@ -15,6 +15,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { generateSlug } from "@/lib/utils";
+import { uploadRemoteUrlToCloudinary } from "@/lib/cloudinary";
 import type { AiContentType } from "@prisma/client";
 
 export interface JobEditableFields {
@@ -56,6 +57,22 @@ async function uniqueSlug(base: string, checkExists: (slug: string) => Promise<b
   return slug;
 }
 
+/** Upload 1 gambar hasil scrape ke Cloudinary; kalau gagal (mis. sumber block hotlink), fallback ke URL asli daripada gagal total publish. */
+async function resolveHostedImage(url: string | null | undefined): Promise<string | null> {
+  if (!url) return null;
+  try {
+    return await uploadRemoteUrlToCloudinary(url);
+  } catch {
+    return url;
+  }
+}
+
+async function resolveHostedImages(urls: string[] | undefined): Promise<string[] | undefined> {
+  if (!urls || urls.length === 0) return undefined;
+  const hosted = await Promise.all(urls.map((u) => resolveHostedImage(u)));
+  return hosted.filter((u): u is string => !!u);
+}
+
 interface PublishResult {
   entityType: "BERITA" | "UMKM" | "GALERI" | "PERANGKAT_DESA" | "PENGUMUMAN";
   entityId: string;
@@ -72,6 +89,10 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
   const tags = editedFields?.tags ?? job.suggestedTags ?? undefined;
   const image = editedFields?.image !== undefined ? editedFields.image : job.featuredImage;
   const contentImages = Array.isArray(job.contentImages) ? (job.contentImages as string[]) : undefined;
+  // Upload ke Cloudinary sendiri (bukan hotlink ke situs sumber) — supaya gambar gak
+  // hilang/berubah kalau situs sumber di-update atau di-takedown.
+  const hostedImage = await resolveHostedImage(image);
+  const hostedContentImages = await resolveHostedImages(contentImages);
   // Tanggal terbit final = tanggal publish ASLI dari sumber kalau ada (hasil scrape WP),
   // supaya urutan & tanggal di daftar publik ngikutin data asli, bukan waktu admin approve.
   const publishedAt = job.originalPublishedAt ?? new Date();
@@ -86,7 +107,7 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
           ownerName: "Belum diisi",
           category: editedFields?.category ?? "Umum",
           description: summary || "-",
-          image: image ?? undefined,
+          image: hostedImage ?? undefined,
           isActive: true,
         },
       });
@@ -94,7 +115,7 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
     }
 
     case "GALERI": {
-      const finalImage = image ?? contentImages?.[0];
+      const finalImage = hostedImage ?? hostedContentImages?.[0];
       if (!finalImage) {
         throw new Error("Tidak ada gambar yang ke-scrape dari post ini — Galeri wajib punya gambar.");
       }
@@ -113,7 +134,7 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
         data: {
           name: title,
           position: editedFields?.category ?? "Perangkat Desa",
-          photo: image ?? undefined,
+          photo: hostedImage ?? undefined,
           bio: summary || undefined,
           isActive: true,
         },
@@ -153,8 +174,8 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
           slug,
           excerpt: summary.slice(0, 200),
           content: summary,
-          coverImage: image ?? undefined,
-          images: contentImages && contentImages.length > 0 ? contentImages : undefined,
+          coverImage: hostedImage ?? undefined,
+          images: hostedContentImages && hostedContentImages.length > 0 ? hostedContentImages : undefined,
           category: editedFields?.category ?? "Umum",
           tags,
           status: publish ? "PUBLISHED" : "DRAFT",
