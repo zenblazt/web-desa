@@ -97,7 +97,7 @@ export async function extractFromUrl(url: string): Promise<ExtractedContent> {
 
   // Gambar-gambar di dalam konten artikel (dari scope yang sudah dipersempit di atas).
   const contentImages: string[] = [];
-  $scope.find("img").each((_, el) => {
+  $scope.find("img").each((_: number, el: any) => {
     const src = $(el).attr("src") || $(el).attr("data-src");
     if (!src || src.startsWith("data:")) return;
     const resolved = resolveUrl(src, url);
@@ -108,7 +108,7 @@ export async function extractFromUrl(url: string): Promise<ExtractedContent> {
 
   // Ambil paragraf-paragraf utama dari scope yang sama (heuristik sederhana, boleh diganti readability lib)
   const paragraphs: string[] = [];
-  $scope.find("p").each((_, el) => {
+  $scope.find("p").each((_: number, el: any) => {
     const t = $(el).text().trim();
     if (t.length > 40) paragraphs.push(t);
   });
