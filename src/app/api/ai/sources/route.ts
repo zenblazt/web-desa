@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { name, url, type, platform, contentType, autoApprove } = await req.json();
+  const { name, url, type, platform, contentType, autoApprove, searchKeywords } = await req.json();
   if (!name || !url) {
     return NextResponse.json({ error: "name dan url wajib diisi" }, { status: 400 });
   }
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
       platform: platform ?? undefined,
       contentType: contentType ?? "BERITA",
       autoApprove: !!autoApprove,
+      searchKeywords: searchKeywords || undefined,
     },
   });
 

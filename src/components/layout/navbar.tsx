@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { href: "/", label: "Beranda" },
   { href: "/profil-desa", label: "Profil Desa" },
   { href: "/perangkat-desa", label: "Perangkat Desa" },
+  { href: "/struktur-organisasi", label: "Struktur Organisasi" },
   { href: "/layanan", label: "Layanan" },
   { href: "/potensi-desa", label: "Potensi Desa" },
   { href: "/umkm", label: "UMKM" },

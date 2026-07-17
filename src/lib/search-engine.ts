@@ -100,18 +100,26 @@ export async function searchWeb(query: string, num = 5): Promise<SearchResultIte
  * sendiri, lalu buang URL yang sudah pernah diproses (dedupe) — sisanya
  * itu yang benar-benar baru dan layak masuk antrean AI job.
  */
-export async function searchFreshNews(topic?: string): Promise<SearchResultItem[]> {
+export async function searchFreshNews(
+  topic?: string,
+  contentType: string = "BERITA"
+): Promise<SearchResultItem[]> {
   const resolvedTopic = topic || (await getVillageInfo()).fullLabel;
   const today = new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date());
   const results = await searchWeb(`berita terbaru ${resolvedTopic} ${today}`, 8);
 
+  // Dedupe di-scope per tab (contentType) tujuan pencarian ini — supaya URL
+  // yang dulu udah dipakai buat tab lain (mis. Berita) TETAP muncul di hasil
+  // pencarian tab ini (mis. UMKM), bukan ikut ke-skip.
   const [knownBeritaUrls, knownJobUrls] = await Promise.all([
-    prisma.berita.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } }),
+    contentType === "BERITA"
+      ? prisma.berita.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } })
+      : Promise.resolve([]),
     // Job yang FAILED/REJECTED sengaja TIDAK dianggap "sudah diproses" — kalau
     // dulu gagal (mis. error sementara) atau ditolak admin, URL-nya boleh
     // muncul lagi di hasil pencarian berikutnya.
     prisma.aiJob.findMany({
-      where: { sourceUrl: { not: null }, status: { notIn: ["FAILED", "REJECTED"] } },
+      where: { sourceUrl: { not: null }, contentType: contentType as any, status: { notIn: ["FAILED", "REJECTED"] } },
       select: { sourceUrl: true },
     }),
   ]);

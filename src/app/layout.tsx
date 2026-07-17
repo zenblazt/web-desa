@@ -7,6 +7,7 @@ import { VisitTracker } from "@/components/shared/visit-tracker";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { getSiteUrl } from "@/lib/utils";
+import { prisma } from "@/lib/prisma";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
@@ -35,7 +36,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Footer & social media links pakai data asli dari DB (Kontak + Settings),
+  // bukan hardcode lagi. Di-fetch di sini (server component) supaya Footer
+  // sendiri tetap bisa "use client" (butuh usePathname) tapi datanya dari DB.
+  const [kontak, settings] = await Promise.all([
+    prisma.kontak.findFirst().catch(() => null),
+    prisma.settings.findUnique({ where: { id: "site_settings" } }).catch(() => null),
+  ]);
+
   return (
     <html lang="id" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans`}>
@@ -44,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <VisitTracker />
             <Navbar />
             <main className="min-h-screen">{children}</main>
-            <Footer />
+            <Footer kontak={kontak} settings={settings} />
           </AuthProvider>
         </ThemeProvider>
       </body>

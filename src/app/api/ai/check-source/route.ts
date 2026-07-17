@@ -56,10 +56,16 @@ export async function POST(req: NextRequest) {
       await prisma.aiSource.update({ where: { id: source.id }, data: { platform } });
     }
 
+    // Dedupe di-scope per URL + tab (contentType) sumber ini, BUKAN URL doang.
+    // Berita cuma relevan kalau tab tujuan sumber ini emang BERITA — kalau
+    // sumber ini contentType-nya UMKM, URL yang dulu udah jadi Berita TETAP
+    // boleh di-scrape ulang khusus buat tab UMKM.
     const [existingBerita, existingJobs] = await Promise.all([
-      prisma.berita.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } }),
+      source.contentType === "BERITA"
+        ? prisma.berita.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } })
+        : Promise.resolve([]),
       prisma.aiJob.findMany({
-        where: { sourceUrl: { not: null }, status: { notIn: ["FAILED", "REJECTED"] } },
+        where: { sourceUrl: { not: null }, contentType: source.contentType, status: { notIn: ["FAILED", "REJECTED"] } },
         select: { sourceUrl: true },
       }),
     ]);

@@ -132,10 +132,10 @@ function ProfilCard({ initial, onSaved }: { initial: any; onSaved: () => void })
       <CardHeader><CardTitle className="text-base">Profil Desa</CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <textarea
-          placeholder="Sejarah desa"
+          placeholder="Sejarah desa — pisahkan tiap paragraf dengan baris kosong (Enter 2x)"
           value={form.sejarah}
           onChange={(e) => setForm({ ...form, sejarah: e.target.value })}
-          rows={4}
+          rows={8}
           className="w-full rounded-xl border border-input bg-background p-3 text-sm shadow-sm"
         />
         <textarea

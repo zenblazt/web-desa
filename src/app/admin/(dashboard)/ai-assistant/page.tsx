@@ -69,11 +69,27 @@ function AiAssistantPage() {
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [queueingUrl, setQueueingUrl] = React.useState<string | null>(null);
 
+  // Kalau tab aktif (mis. UMKM) punya sumber dengan kata kunci fokus
+  // tersimpan, pakai itu sebagai default topik pencarian — admin gak perlu
+  // ketik ulang tiap buka panel, tapi tetap bisa diedit manual.
+  function openTavilyPanel() {
+    if (!tavilyOpen) {
+      const focused = activeSources.find((s: any) => s.searchKeywords?.trim());
+      if (focused && !searchTopic) setSearchTopic(focused.searchKeywords);
+    }
+    setTavilyOpen((v) => !v);
+  }
+
   const [approvingAll, setApprovingAll] = React.useState(false);
   const [approveAllMsg, setApproveAllMsg] = React.useState<string | null>(null);
 
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [resettingHistory, setResettingHistory] = React.useState(false);
+
+  React.useEffect(() => {
+    setSearchTopic("");
+    setSearchResults([]);
+  }, [activeType]);
 
   async function resetHistory() {
     const step1 = confirm(
@@ -126,6 +142,17 @@ function AiAssistantPage() {
     mutateSources();
   }
 
+  const [keywordDrafts, setKeywordDrafts] = React.useState<Record<string, string>>({});
+  async function saveSearchKeywords(sourceId: string) {
+    const searchKeywords = (keywordDrafts[sourceId] ?? "").trim();
+    await fetch(`/api/ai/sources/${sourceId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ searchKeywords }),
+    });
+    mutateSources();
+  }
+
   async function removeSource(id: string) {
     if (!confirm("Hapus sumber ini?")) return;
     await fetch(`/api/ai/sources/${id}`, { method: "DELETE" });
@@ -165,7 +192,7 @@ function AiAssistantPage() {
     const res = await fetch("/api/ai/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic: searchTopic || undefined }),
+      body: JSON.stringify({ topic: searchTopic || undefined, contentType: activeType }),
     });
     const data = await res.json();
     setSearching(false);
@@ -327,6 +354,18 @@ function AiAssistantPage() {
                 )}
               </div>
 
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                <Input
+                  placeholder={`Kata kunci fokus pencarian (mis. "UMKM produk lokal") — biar AI fokus ke topik ${activeTypeMeta.label}`}
+                  value={keywordDrafts[s.id] ?? s.searchKeywords ?? ""}
+                  onChange={(e) => setKeywordDrafts((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                  className="text-xs"
+                />
+                <Button size="sm" variant="outline" onClick={() => saveSearchKeywords(s.id)} className="shrink-0">
+                  Simpan
+                </Button>
+              </div>
+
               {checkResultMsg[s.id] && <p className="text-xs text-muted-foreground">{checkResultMsg[s.id]}</p>}
             </div>
           ))}
@@ -350,7 +389,7 @@ function AiAssistantPage() {
       <Card>
         <button
           type="button"
-          onClick={() => setTavilyOpen((v) => !v)}
+          onClick={openTavilyPanel}
           className="flex w-full items-center gap-3 p-4 text-left"
         >
           {tavilyOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}

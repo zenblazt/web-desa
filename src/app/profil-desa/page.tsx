@@ -35,8 +35,14 @@ export default async function ProfilDesaPage() {
             <Compass className="h-5 w-5 text-primary" />
             <CardTitle>Sejarah Desa</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm max-w-none text-muted-foreground dark:prose-invert">
-            {profil?.sejarah ?? "Konten sejarah desa akan segera ditambahkan oleh admin."}
+          <CardContent className="prose prose-sm max-w-none space-y-4 text-muted-foreground dark:prose-invert">
+            {profil?.sejarah
+              ? profil.sejarah
+                  .split(/\n\s*\n/) // pisah per baris kosong = paragraf baru
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .map((paragraf, i) => <p key={i}>{paragraf}</p>)
+              : <p>Konten sejarah desa akan segera ditambahkan oleh admin.</p>}
           </CardContent>
         </Card>
 

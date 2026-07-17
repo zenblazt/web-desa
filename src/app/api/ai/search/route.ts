@@ -24,8 +24,11 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { topic } = (await req.json().catch(() => ({}))) as { topic?: string };
-    const results = await searchFreshNews(topic);
+    const { topic, contentType } = (await req.json().catch(() => ({}))) as {
+      topic?: string;
+      contentType?: string;
+    };
+    const results = await searchFreshNews(topic, contentType || "BERITA");
     return NextResponse.json({ results, quota: await getSearchQuotaStatus() });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

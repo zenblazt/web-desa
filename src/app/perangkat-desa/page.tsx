@@ -43,6 +43,9 @@ export default async function PerangkatDesaPage() {
               </div>
               <h3 className="mt-4 font-semibold">{p.name}</h3>
               <p className="text-sm text-primary">{p.position}</p>
+              {p.bio && (
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{p.bio}</p>
+              )}
               {p.phone && (
                 <p className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground">
                   <Phone className="h-3 w-3" /> {p.phone}

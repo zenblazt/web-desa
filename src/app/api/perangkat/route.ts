@@ -14,9 +14,11 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
-  const { name, position, photo, phone, email, bio } = body;
+  const { name, position, photo, phone, email, bio, level } = body;
   if (!name || !position) return NextResponse.json({ error: "Nama dan jabatan wajib diisi" }, { status: 400 });
 
-  const item = await prisma.perangkatDesa.create({ data: { name, position, photo, phone, email, bio } });
+  const item = await prisma.perangkatDesa.create({
+    data: { name, position, photo, phone, email, bio, level: level ? Number(level) : 1 },
+  });
   return NextResponse.json({ item });
 }

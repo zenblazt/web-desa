@@ -195,6 +195,7 @@ model PerangkatDesa {
   email     String?
   bio       String?  @db.Text
   order     Int      @default(0)
+  level     Int      @default(1) // jenjang bagan struktur organisasi: 1 = Kepala Desa (paling atas), makin besar makin bawah
   isActive  Boolean  @default(true)
 
   createdAt DateTime @default(now())
@@ -308,6 +309,7 @@ model AiSource {
   type        SourceType    @default(MANUAL_LINK)
   platform    String?       // "wordpress" kalau situs WP (bisa di-scrape via wp-json, 0 kuota AI)
   contentType AiContentType @default(BERITA) // tab tujuan: Berita/UMKM/Galeri/Perangkat Desa/Pengumuman
+  searchKeywords String?    // kata kunci fokus pencarian (dipakai di "Cari Topik Lain"), mis. "UMKM produk lokal" biar AI fokus cari berita UMKM, bukan berita umum
   autoApprove Boolean       @default(false)  // kalau true: hasil scrape langsung publish otomatis, admin gak perlu review satu-satu
   isActive    Boolean       @default(true)
   lastCheckedAt DateTime?

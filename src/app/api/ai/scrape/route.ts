@@ -50,27 +50,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "URL wajib diisi" }, { status: 400 });
     }
 
-    // Dedupe: kalau URL ini udah pernah masuk Berita, atau ada AiJob yang MASIH
-    // AKTIF/BERHASIL (bukan yang dulu gagal/ditolak), jangan buang-buang extract+kuota
-    // AI lagi. Job yang FAILED/REJECTED sengaja TIDAK dihitung sebagai duplicate,
-    // supaya URL yang dulu gagal (mis. karena error sementara) bisa dicoba ulang.
+    // Dedupe di-scope per URL + tab (contentType), BUKAN URL doang. Alasannya:
+    // 1 URL portal bisa dipakai ulang buat tab berbeda (mis. udah pernah jadi
+    // Berita, sekarang mau di-scrape lagi khusus buat tab UMKM) tanpa nabrak
+    // "duplicate" — tapi tetap gak boleh dobel dalam tab yang SAMA.
+    // - Berita cuma dicek kalau tujuannya emang tab Berita (tabel Berita
+    //   hanya berisi hasil scrape utk tab itu).
+    // - AiJob dicek dengan filter contentType juga, biar job lama di tab lain
+    //   gak ikut nge-block. Job FAILED/REJECTED tetap gak dihitung duplicate,
+    //   supaya URL yang dulu gagal bisa dicoba ulang.
     const [existingBerita, existingJob] = await Promise.all([
-      prisma.berita.findFirst({ where: { sourceUrl: targetUrl } }),
+      resolvedContentType === "BERITA"
+        ? prisma.berita.findFirst({ where: { sourceUrl: targetUrl } })
+        : null,
       prisma.aiJob.findFirst({
-        where: { sourceUrl: targetUrl, status: { notIn: ["FAILED", "REJECTED"] } },
+        where: {
+          sourceUrl: targetUrl,
+          contentType: resolvedContentType as any,
+          status: { notIn: ["FAILED", "REJECTED"] },
+        },
       }),
     ]);
     if (existingBerita || existingJob) {
       return NextResponse.json(
-        { error: "URL ini sudah pernah diproses sebelumnya.", duplicate: true },
+        { error: "URL ini sudah pernah diproses sebelumnya untuk tab ini.", duplicate: true },
         { status: 409 }
       );
     }
 
-    // Bersihkan job lama yang FAILED/REJECTED untuk URL ini (kalau ada), supaya
-    // gak numpuk job basi di database tiap kali di-retry.
+    // Bersihkan job lama yang FAILED/REJECTED untuk URL + tab ini (kalau ada),
+    // supaya gak numpuk job basi di database tiap kali di-retry.
     await prisma.aiJob.deleteMany({
-      where: { sourceUrl: targetUrl, status: { in: ["FAILED", "REJECTED"] } },
+      where: { sourceUrl: targetUrl, contentType: resolvedContentType as any, status: { in: ["FAILED", "REJECTED"] } },
     });
 
     const job = await prisma.aiJob.create({

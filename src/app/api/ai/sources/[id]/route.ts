@@ -17,12 +17,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { autoApprove, isActive, contentType, name, url } = body as {
+  const { autoApprove, isActive, contentType, name, url, searchKeywords } = body as {
     autoApprove?: boolean;
     isActive?: boolean;
     contentType?: string;
     name?: string;
     url?: string;
+    searchKeywords?: string;
   };
 
   const source = await prisma.aiSource.update({
@@ -33,6 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       ...(contentType !== undefined ? { contentType: contentType as any } : {}),
       ...(name !== undefined ? { name } : {}),
       ...(url !== undefined ? { url } : {}),
+      ...(searchKeywords !== undefined ? { searchKeywords } : {}),
     },
   });
 
