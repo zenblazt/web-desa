@@ -438,10 +438,13 @@ function AiAssistantPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {approveAllMsg && <p className="text-sm text-muted-foreground">{approveAllMsg}</p>}
-          {jobs.length === 0 && <p className="text-sm text-muted-foreground">Belum ada job AI untuk tab {activeTypeMeta.label}.</p>}
-          {jobs.map((job: any) => (
-            <AiJobCard key={job.id} job={job} onDone={() => mutateJobs()} />
-          ))}
+          {(() => {
+            const visibleJobs = jobs.filter((j: any) => j.status !== "PUBLISHED");
+            if (visibleJobs.length === 0) {
+              return <p className="text-sm text-muted-foreground">Belum ada job AI untuk tab {activeTypeMeta.label}.</p>;
+            }
+            return visibleJobs.map((job: any) => <AiJobCard key={job.id} job={job} onDone={() => mutateJobs()} />);
+          })()}
         </CardContent>
       </Card>
     </div>

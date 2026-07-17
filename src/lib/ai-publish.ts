@@ -93,6 +93,10 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
   // hilang/berubah kalau situs sumber di-update atau di-takedown.
   const hostedImage = await resolveHostedImage(image);
   const hostedContentImages = await resolveHostedImages(contentImages);
+  // Kalau situs sumber gak punya og:image (featuredImage kosong) tapi ada gambar di dalam
+  // artikel, pakai gambar pertama itu sebagai cover — daripada cover-nya kosong padahal
+  // sebenarnya ada gambar (yang sebelumnya cuma nongol di galeri bawah artikel).
+  const effectiveCoverImage = hostedImage ?? hostedContentImages?.[0] ?? null;
   // Tanggal terbit final = tanggal publish ASLI dari sumber kalau ada (hasil scrape WP),
   // supaya urutan & tanggal di daftar publik ngikutin data asli, bukan waktu admin approve.
   const publishedAt = job.originalPublishedAt ?? new Date();
@@ -107,7 +111,7 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
           ownerName: "Belum diisi",
           category: editedFields?.category ?? "Umum",
           description: summary || "-",
-          image: hostedImage ?? undefined,
+          image: effectiveCoverImage ?? undefined,
           isActive: true,
         },
       });
@@ -115,7 +119,7 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
     }
 
     case "GALERI": {
-      const finalImage = hostedImage ?? hostedContentImages?.[0];
+      const finalImage = effectiveCoverImage;
       if (!finalImage) {
         throw new Error("Tidak ada gambar yang ke-scrape dari post ini — Galeri wajib punya gambar.");
       }
@@ -134,7 +138,7 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
         data: {
           name: title,
           position: editedFields?.category ?? "Perangkat Desa",
-          photo: hostedImage ?? undefined,
+          photo: effectiveCoverImage ?? undefined,
           bio: summary || undefined,
           isActive: true,
         },
@@ -174,8 +178,11 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
           slug,
           excerpt: summary.slice(0, 200),
           content: summary,
-          coverImage: hostedImage ?? undefined,
-          images: hostedContentImages && hostedContentImages.length > 0 ? hostedContentImages : undefined,
+          coverImage: effectiveCoverImage ?? undefined,
+          images: (() => {
+            const gallery = (hostedContentImages ?? []).filter((u) => u !== effectiveCoverImage);
+            return gallery.length > 0 ? gallery : undefined;
+          })(),
           category: editedFields?.category ?? "Umum",
           tags,
           status: publish ? "PUBLISHED" : "DRAFT",

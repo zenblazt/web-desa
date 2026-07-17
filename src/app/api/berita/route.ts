@@ -29,8 +29,9 @@ export async function DELETE(req: NextRequest) {
   const seoMetaIds = beritaList.map((b) => b.seoMetaId).filter(Boolean) as string[];
 
   const result = await prisma.$transaction(async (tx) => {
-    // Lepas dulu referensi dari AiJob supaya gak kena constraint pas berita dihapus.
-    await tx.aiJob.updateMany({ where: { beritaId: { not: null } }, data: { beritaId: null } });
+    // Hapus juga AiJob historinya (bukan cuma lepas link ke berita) — supaya "sudah pernah
+    // diproses" (dedupe by sourceUrl) ke-reset dan URL yang sama bisa di-scrape ulang.
+    await tx.aiJob.deleteMany({ where: { beritaId: { not: null } } });
     const deleted = await tx.berita.deleteMany({});
     if (seoMetaIds.length > 0) {
       await tx.seoMeta.deleteMany({ where: { id: { in: seoMetaIds } } });
