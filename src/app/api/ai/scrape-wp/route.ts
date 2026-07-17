@@ -47,10 +47,14 @@ export async function POST(req: NextRequest) {
     // ngikutin timeline situs sumber, bukan urutan kedatangan halaman.
     const posts = await fetchWpPosts(source.url, { maxPages: maxPages ?? 3, perPage: 20 });
 
-    // Dedupe terhadap yang sudah ada
+    // Dedupe terhadap yang sudah ada (job FAILED/REJECTED gak dihitung "sudah
+    // diproses" — biar post yang dulu gagal/ditolak bisa dicoba scrape lagi)
     const [existingBerita, existingJobs] = await Promise.all([
       prisma.berita.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } }),
-      prisma.aiJob.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } }),
+      prisma.aiJob.findMany({
+        where: { sourceUrl: { not: null }, status: { notIn: ["FAILED", "REJECTED"] } },
+        select: { sourceUrl: true },
+      }),
     ]);
     const knownUrls = new Set(
       [...existingBerita, ...existingJobs].map((r) => r.sourceUrl).filter(Boolean) as string[]

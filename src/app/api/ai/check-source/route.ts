@@ -58,7 +58,10 @@ export async function POST(req: NextRequest) {
 
     const [existingBerita, existingJobs] = await Promise.all([
       prisma.berita.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } }),
-      prisma.aiJob.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } }),
+      prisma.aiJob.findMany({
+        where: { sourceUrl: { not: null }, status: { notIn: ["FAILED", "REJECTED"] } },
+        select: { sourceUrl: true },
+      }),
     ]);
     const knownUrls = new Set(
       [...existingBerita, ...existingJobs].map((r) => r.sourceUrl).filter(Boolean) as string[]

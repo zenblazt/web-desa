@@ -50,11 +50,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "URL wajib diisi" }, { status: 400 });
     }
 
-    // Dedupe: kalau URL ini udah pernah masuk Berita/AiJob, jangan buang-buang
-    // extract+kuota AI lagi.
+    // Dedupe: kalau URL ini udah pernah masuk Berita, atau ada AiJob yang MASIH
+    // AKTIF/BERHASIL (bukan yang dulu gagal/ditolak), jangan buang-buang extract+kuota
+    // AI lagi. Job yang FAILED/REJECTED sengaja TIDAK dihitung sebagai duplicate,
+    // supaya URL yang dulu gagal (mis. karena error sementara) bisa dicoba ulang.
     const [existingBerita, existingJob] = await Promise.all([
       prisma.berita.findFirst({ where: { sourceUrl: targetUrl } }),
-      prisma.aiJob.findFirst({ where: { sourceUrl: targetUrl } }),
+      prisma.aiJob.findFirst({
+        where: { sourceUrl: targetUrl, status: { notIn: ["FAILED", "REJECTED"] } },
+      }),
     ]);
     if (existingBerita || existingJob) {
       return NextResponse.json(
@@ -62,6 +66,12 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+
+    // Bersihkan job lama yang FAILED/REJECTED untuk URL ini (kalau ada), supaya
+    // gak numpuk job basi di database tiap kali di-retry.
+    await prisma.aiJob.deleteMany({
+      where: { sourceUrl: targetUrl, status: { in: ["FAILED", "REJECTED"] } },
+    });
 
     const job = await prisma.aiJob.create({
       data: {

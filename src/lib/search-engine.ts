@@ -107,7 +107,13 @@ export async function searchFreshNews(topic?: string): Promise<SearchResultItem[
 
   const [knownBeritaUrls, knownJobUrls] = await Promise.all([
     prisma.berita.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } }),
-    prisma.aiJob.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } }),
+    // Job yang FAILED/REJECTED sengaja TIDAK dianggap "sudah diproses" — kalau
+    // dulu gagal (mis. error sementara) atau ditolak admin, URL-nya boleh
+    // muncul lagi di hasil pencarian berikutnya.
+    prisma.aiJob.findMany({
+      where: { sourceUrl: { not: null }, status: { notIn: ["FAILED", "REJECTED"] } },
+      select: { sourceUrl: true },
+    }),
   ]);
 
   const known = new Set(
