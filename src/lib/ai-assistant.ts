@@ -20,9 +20,17 @@
 
 import * as cheerio from "cheerio";
 import { generateSlug } from "@/lib/utils";
+import { withGeminiRetry, geminiLimiter } from "@/lib/rate-limiter";
 
-const GEMINI_MODEL = "gemini-2.0-flash"; // cepat & masuk free tier AI Studio
+// gemini-2.5-flash-lite = RPM & RPD paling longgar di free tier AI Studio saat ini.
+// Bisa dioverride lewat env GEMINI_MODEL kalau mau pakai model lain.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+/** Status limiter saat ini, buat ditampilkan di admin panel */
+export function getGeminiQuotaStatus() {
+  return geminiLimiter.getStatus();
+}
 
 interface ExtractedContent {
   title: string;
@@ -94,30 +102,34 @@ Tugas kamu, kembalikan HANYA JSON valid (tanpa markdown, tanpa penjelasan tambah
   "suggestedTags": "tag1, tag2, tag3"
 }`;
 
-  const res = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 1500,
-        responseMimeType: "application/json",
-      },
-    }),
+  const parsed = await withGeminiRetry(async () => {
+    const res = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 1500,
+          responseMimeType: "application/json",
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      const err: any = new Error(`Gemini request gagal: ${res.status} ${errBody}`);
+      err.status = res.status;
+      throw err;
+    }
+
+    const data = await res.json();
+    const textBlock: string =
+      data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    const cleaned = textBlock.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned);
   });
 
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
-    throw new Error(`Gemini request gagal: ${res.status} ${errBody}`);
-  }
-
-  const data = await res.json();
-  const textBlock: string =
-    data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-  const cleaned = textBlock.replace(/```json|```/g, "").trim();
-
-  const parsed = JSON.parse(cleaned);
   return {
     summary: parsed.summary,
     suggestedTitle: parsed.suggestedTitle,
@@ -125,4 +137,85 @@ Tugas kamu, kembalikan HANYA JSON valid (tanpa markdown, tanpa penjelasan tambah
     suggestedMetaDescription: parsed.suggestedMetaDescription,
     suggestedTags: parsed.suggestedTags,
   };
+}
+
+/**
+ * Versi BATCH: ringkas beberapa konten sekaligus dalam 1 request Gemini.
+ * Ini yang paling efektif menghemat kuota — 10 berita jadi ~2 request
+ * (chunk 5/request) bukan 10 request. Dipakai saat scraping banyak item
+ * (mis. hasil WP-JSON atau hasil search engine) sekaligus.
+ */
+export async function summarizeAndGenerateSeoBatch(
+  contents: ExtractedContent[],
+  chunkSize = 5
+): Promise<AiDraft[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY belum diset di environment variables");
+  if (contents.length === 0) return [];
+
+  const results: AiDraft[] = [];
+
+  for (let i = 0; i < contents.length; i += chunkSize) {
+    const chunk = contents.slice(i, i + chunkSize);
+
+    const itemsPrompt = chunk
+      .map(
+        (c, idx) =>
+          `--- ITEM ${idx} ---\nURL: ${c.url}\nJUDUL ASLI: ${c.title}\nISI:\n${c.text.slice(0, 4000)}`
+      )
+      .join("\n\n");
+
+    const prompt = `Kamu asisten redaksi website resmi desa. Berikut ${chunk.length} konten mentah hasil scraping (dipisah "--- ITEM n ---").
+
+${itemsPrompt}
+
+Tugas kamu, kembalikan HANYA JSON array valid (tanpa markdown, tanpa penjelasan), urut sesuai nomor ITEM, tiap elemen strukturnya persis:
+{
+  "summary": "ringkasan 150-250 kata, bahasa Indonesia baku, netral, informatif",
+  "suggestedTitle": "judul SEO menarik max 65 karakter",
+  "suggestedSlug": "slug-url-ramah-seo",
+  "suggestedMetaDescription": "meta description 140-160 karakter",
+  "suggestedTags": "tag1, tag2, tag3"
+}`;
+
+    const parsedArray = await withGeminiRetry(async () => {
+      const res = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 500 * chunk.length + 500,
+            responseMimeType: "application/json",
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        const err: any = new Error(`Gemini request gagal: ${res.status} ${errBody}`);
+        err.status = res.status;
+        throw err;
+      }
+
+      const data = await res.json();
+      const textBlock: string =
+        data.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
+      const cleaned = textBlock.replace(/```json|```/g, "").trim();
+      return JSON.parse(cleaned) as any[];
+    });
+
+    for (const parsed of parsedArray) {
+      results.push({
+        summary: parsed.summary,
+        suggestedTitle: parsed.suggestedTitle,
+        suggestedSlug: generateSlug(parsed.suggestedSlug || parsed.suggestedTitle),
+        suggestedMetaDescription: parsed.suggestedMetaDescription,
+        suggestedTags: parsed.suggestedTags,
+      });
+    }
+  }
+
+  return results;
 }

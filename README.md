@@ -149,6 +149,13 @@ perangkat desa yang isi manual), berikut yang masih perlu kamu putuskan/atur:
    tool web-search di endpoint `/api/ai/scrape` — saat ini opsi 2
    diimplementasikan sebagai "cek ulang sumber terdaftar", yang lebih
    aman dan terkontrol untuk situs resmi pemerintah desa.
+6. **Scraper situs WordPress (Opsi 3, 0 kuota AI)** dan **cari berita
+   baru via search engine (Opsi 4, hemat query)** ada di halaman
+   AI Assistant admin. Schema Prisma berubah untuk fitur ini (`SourceType`
+   tambah `WP_JSON`/`SEARCH_ENGINE`, tabel baru `search_quota`) — **jalankan
+   ulang `npx prisma db push` setelah deploy update ini**. Opsi 4 butuh
+   `GOOGLE_CSE_API_KEY` & `GOOGLE_CSE_CX` (lihat `.env.example`); tanpa itu,
+   Opsi 3 (WordPress) tetap jalan normal karena tidak butuh API key tambahan.
 
 ## Deploy ke Railway
 

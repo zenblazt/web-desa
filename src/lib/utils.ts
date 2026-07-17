@@ -13,7 +13,13 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function getSiteUrl() {
   const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
-  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  // Kalau sudah ada protokol (http:// ATAU https://), pakai apa adanya —
+  // jangan dipaksa ganti ke https supaya dev lokal (http) tetap jalan.
+  if (/^https?:\/\//i.test(raw)) return raw;
+  // Kalau protokol belum ditulis: localhost/127.0.0.1 default ke http,
+  // domain lain (mis. Railway) default ke https.
+  const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(raw);
+  return isLocal ? `http://${raw}` : `https://${raw}`;
 }
 
 export function generateSlug(text: string) {

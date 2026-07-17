@@ -25,8 +25,10 @@ enum ContentStatus {
 }
 
 enum SourceType {
-  MANUAL_LINK   // admin kasih link, AI ringkas
-  AUTO_SEARCH   // AI cari sendiri berdasarkan tanggal/topik
+  MANUAL_LINK    // admin kasih link, AI ringkas
+  AUTO_SEARCH    // AI cari sendiri berdasarkan tanggal/topik
+  WP_JSON        // scrape situs WordPress lewat REST API-nya, 0 kuota AI
+  SEARCH_ENGINE  // cari berita baru lewat search engine (hemat, dedupe + limit harian)
 }
 
 enum AiJobStatus {
@@ -293,6 +295,7 @@ model AiSource {
   name        String     // nama sumber, e.g. "Website Kecamatan Jenangan"
   url         String
   type        SourceType @default(MANUAL_LINK)
+  platform    String?    // "wordpress" kalau situs WP (bisa di-scrape via wp-json, 0 kuota AI)
   isActive    Boolean    @default(true)
   lastCheckedAt DateTime?
   createdAt   DateTime   @default(now())
@@ -330,6 +333,13 @@ model AiJob {
   updatedAt       DateTime    @updatedAt
 
   @@map("ai_jobs")
+}
+
+model SearchQuota {
+  date  String @id // format YYYY-MM-DD
+  count Int    @default(0)
+
+  @@map("search_quota")
 }
 
 // ---------- Analytics ----------
