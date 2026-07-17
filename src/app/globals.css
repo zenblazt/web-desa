@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 155 25% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 155 25% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 155 25% 10%;
+
+    --primary: 152 55% 35%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 152 30% 96%;
+    --secondary-foreground: 152 40% 20%;
+
+    --muted: 152 15% 96%;
+    --muted-foreground: 155 10% 45%;
+
+    --accent: 152 40% 92%;
+    --accent-foreground: 152 50% 20%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 152 15% 90%;
+    --input: 152 15% 90%;
+    --ring: 152 55% 35%;
+
+    --radius: 0.9rem;
+  }
+
+  .dark {
+    --background: 155 25% 6%;
+    --foreground: 152 15% 92%;
+
+    --card: 155 22% 9%;
+    --card-foreground: 152 15% 92%;
+
+    --popover: 155 22% 9%;
+    --popover-foreground: 152 15% 92%;
+
+    --primary: 152 50% 45%;
+    --primary-foreground: 155 25% 6%;
+
+    --secondary: 155 18% 14%;
+    --secondary-foreground: 152 15% 92%;
+
+    --muted: 155 18% 14%;
+    --muted-foreground: 152 10% 60%;
+
+    --accent: 155 18% 16%;
+    --accent-foreground: 152 15% 92%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 155 15% 18%;
+    --input: 155 15% 18%;
+    --ring: 152 50% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  .container-app {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+  .section-y {
+    @apply py-12 md:py-16 lg:py-20;
+  }
+  .card-soft {
+    @apply rounded-2xl border border-border bg-card shadow-soft transition-shadow hover:shadow-soft-lg;
+  }
+}

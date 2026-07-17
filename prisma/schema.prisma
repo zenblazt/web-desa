@@ -1,0 +1,359 @@
+// ============================================
+// Sistem Informasi Desa Tanjungsari - Schema
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPERADMIN
+  ADMIN
+  EDITOR
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  ARCHIVED
+}
+
+enum SourceType {
+  MANUAL_LINK   // admin kasih link, AI ringkas
+  AUTO_SEARCH   // AI cari sendiri berdasarkan tanggal/topik
+}
+
+enum AiJobStatus {
+  PENDING
+  RUNNING
+  NEEDS_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
+  FAILED
+}
+
+// ---------- Auth ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(EDITOR)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  berita        Berita[]
+  pengumuman    Pengumuman[]
+  aiJobs        AiJob[]
+  activityLogs  ActivityLog[]
+
+  @@map("users")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String   // e.g. "CREATE_BERITA", "PUBLISH_PENGUMUMAN"
+  entity    String
+  entityId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@map("activity_logs")
+}
+
+// ---------- SEO (reusable) ----------
+
+model SeoMeta {
+  id              String   @id @default(cuid())
+  metaTitle       String?
+  metaDescription String? @db.Text
+  keywords        String?
+  ogImage         String?
+  canonicalUrl    String?
+
+  berita     Berita?
+  pengumuman Pengumuman?
+  layanan    Layanan?
+  umkm       Umkm?
+
+  @@map("seo_meta")
+}
+
+// ---------- Konten Publik ----------
+
+model Berita {
+  id          String        @id @default(cuid())
+  title       String
+  slug        String        @unique
+  excerpt     String        @db.Text
+  content     String        @db.LongText
+  coverImage  String?
+  category    String        @default("Umum")
+  tags        String?       // comma separated
+  status      ContentStatus @default(DRAFT)
+  publishedAt DateTime?
+  viewCount   Int           @default(0)
+
+  sourceUrl   String?       // kalau hasil AI scraping
+  isAiGenerated Boolean     @default(false)
+
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id])
+
+  seoMetaId   String?       @unique
+  seoMeta     SeoMeta?      @relation(fields: [seoMetaId], references: [id])
+
+  aiJob       AiJob?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([category])
+  @@map("berita")
+}
+
+model Pengumuman {
+  id          String        @id @default(cuid())
+  title       String
+  slug        String        @unique
+  content     String        @db.LongText
+  category    String        @default("Umum") // Umum, Penting, Darurat, Kegiatan
+  isPinned    Boolean       @default(false)
+  status      ContentStatus @default(DRAFT)
+  publishedAt DateTime?
+  expiredAt   DateTime?
+  attachment  String?
+
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id])
+
+  seoMetaId   String?       @unique
+  seoMeta     SeoMeta?      @relation(fields: [seoMetaId], references: [id])
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status, isPinned])
+  @@map("pengumuman")
+}
+
+model Layanan {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String   @db.Text
+  icon        String?  // lucide icon name
+  requirements String? @db.Text // syarat-syarat
+  procedure   String?  @db.Text // alur/prosedur
+  duration    String?  // estimasi waktu
+  cost        String?  // biaya (gratis/berbayar)
+  formUrl     String?  // link/download form jika ada
+  isPopular   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+
+  seoMetaId   String?  @unique
+  seoMeta     SeoMeta? @relation(fields: [seoMetaId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("layanan")
+}
+
+model PerangkatDesa {
+  id        String   @id @default(cuid())
+  name      String
+  position  String   // Kepala Desa, Sekretaris, Kaur, Kadus, dst
+  photo     String?
+  phone     String?
+  email     String?
+  bio       String?  @db.Text
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("perangkat_desa")
+}
+
+model PotensiDesa {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  category    String   // Pertanian, Wisata, Kerajinan, dll
+  description String   @db.Text
+  image       String?
+  location    String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("potensi_desa")
+}
+
+model Umkm {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  ownerName   String
+  category    String   // Kuliner, Kerajinan, Jasa, dll
+  description String   @db.Text
+  image       String?
+  phone       String?
+  whatsapp    String?
+  address     String?
+  isFeatured  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+
+  seoMetaId   String?  @unique
+  seoMeta     SeoMeta? @relation(fields: [seoMetaId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("umkm")
+}
+
+model Galeri {
+  id        String   @id @default(cuid())
+  title     String
+  image     String
+  category  String   @default("Umum") // Kegiatan, Wisata, Fasilitas, dll
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("galeri")
+}
+
+model ProfilDesa {
+  id            String   @id @default(cuid())
+  sejarah       String?  @db.LongText
+  visi          String?  @db.Text
+  misi          String?  @db.Text
+  lambangImage  String?
+  petaImage     String?
+  luasWilayah   String?
+  jumlahPenduduk String?
+  batasUtara    String?
+  batasSelatan  String?
+  batasTimur    String?
+  batasBarat    String?
+  updatedAt     DateTime @updatedAt
+
+  @@map("profil_desa")
+}
+
+model Statistik {
+  id          String   @id @default(cuid())
+  label       String   // "Jumlah Penduduk", "Jumlah KK", "Luas Wilayah"
+  value       String
+  icon        String?
+  order       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@map("statistik")
+}
+
+model Kontak {
+  id          String   @id @default(cuid())
+  address     String   @db.Text
+  phone       String?
+  whatsapp    String?
+  email       String?
+  mapEmbedUrl String?  @db.Text
+  facebook    String?
+  instagram   String?
+  youtube     String?
+  operationalHours String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("kontak")
+}
+
+// ---------- AI Assistant (scraping & summarize) ----------
+
+model AiSource {
+  id          String     @id @default(cuid())
+  name        String     // nama sumber, e.g. "Website Kecamatan Jenangan"
+  url         String
+  type        SourceType @default(MANUAL_LINK)
+  isActive    Boolean    @default(true)
+  lastCheckedAt DateTime?
+  createdAt   DateTime   @default(now())
+
+  aiJobs      AiJob[]
+
+  @@map("ai_sources")
+}
+
+model AiJob {
+  id              String      @id @default(cuid())
+  sourceType      SourceType  @default(MANUAL_LINK)
+  sourceUrl       String?     @db.Text
+  aiSourceId      String?
+  aiSource        AiSource?   @relation(fields: [aiSourceId], references: [id])
+
+  status          AiJobStatus @default(PENDING)
+
+  rawExtract      String?     @db.LongText // hasil scraping mentah
+  summary         String?     @db.LongText // ringkasan AI
+  suggestedTitle  String?
+  suggestedSlug   String?
+  suggestedMetaDescription String? @db.Text
+  suggestedTags   String?
+
+  reviewedById    String?
+  reviewedBy      User?       @relation(fields: [reviewedById], references: [id])
+  reviewNote      String?     @db.Text
+
+  beritaId        String?     @unique
+  berita          Berita?     @relation(fields: [beritaId], references: [id])
+
+  errorMessage    String?     @db.Text
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("ai_jobs")
+}
+
+// ---------- Analytics ----------
+
+model PageVisit {
+  id        String   @id @default(cuid())
+  path      String
+  referrer  String?
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([path, createdAt])
+  @@map("page_visits")
+}
+
+model Settings {
+  id          String   @id @default("site_settings")
+  siteName    String   @default("Desa Tanjungsari")
+  tagline     String?
+  logo        String?
+  favicon     String?
+  primaryColor String  @default("#2f9c67")
+  maintenanceMode Boolean @default(false)
+  updatedAt   DateTime @updatedAt
+
+  @@map("settings")
+}
