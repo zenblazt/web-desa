@@ -231,7 +231,7 @@ export default function AiAssistantPage() {
             <div>
               <CardTitle className="text-base">Opsi 3 — Scraper Situs Resmi (WordPress)</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Tarik semua post lewat REST API WordPress-nya langsung — data terstruktur, <strong>gak butuh AI sama sekali</strong> (0 kuota Gemini). Tandai sumber sebagai "Situs WordPress" dulu.
+                Tarik semua post lewat REST API WordPress-nya langsung — data terstruktur, <strong>gak butuh AI sama sekali</strong> (0 kuota Gemini). Tandai sumber sebagai &quot;Situs WordPress&quot; dulu.
               </p>
             </div>
           </CardHeader>
