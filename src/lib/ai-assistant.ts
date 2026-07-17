@@ -86,7 +86,7 @@ export async function extractFromUrl(url: string): Promise<ExtractedContent> {
   // biar gambar & paragraf yang diambil BENAR-BENAR dari isi berita, bukan ikut kebawa
   // thumbnail "artikel terkait"/sidebar yang kadang nempel di dalam <main>.
   const scopeSelectors = ["article", ".post-content", ".entry-content", ".content", "main"];
-  let $scope = $("body");
+  let $scope: any = $("body");
   for (const sel of scopeSelectors) {
     const candidate = $(sel).first();
     if (candidate.length && candidate.text().trim().length > 150) {
