@@ -117,7 +117,7 @@ export async function withGeminiRetry<T>(
     } catch (err: any) {
       lastErr = err;
       const status = err?.status ?? extractStatusFromMessage(err?.message);
-      const isRetryable = status === 429 || status === 503 || status === 500;
+      const isRetryable = status === 429 || status === 503 || status === 500 || err?.isJsonParseError === true;
       if (!isRetryable || attempt === maxRetries) throw err;
 
       // exponential backoff + jitter

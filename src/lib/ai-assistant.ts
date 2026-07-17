@@ -23,6 +23,76 @@ import { generateSlug } from "@/lib/utils";
 import { withGeminiRetry, geminiLimiter } from "@/lib/rate-limiter";
 import { getVillageInfo } from "@/lib/village";
 
+/**
+ * Gemini kadang tetap nyelipin teks di luar JSON walau sudah diminta
+ * "HANYA JSON" (mis. catatan tambahan, atau JSON ke-duplikat) — biasanya
+ * muncul sebagai error "Unexpected non-whitespace character after JSON".
+ * Helper ini ambil CUMA bagian objek/array JSON yang valid (dari kurung
+ * pembuka pertama sampai kurung penutup yang benar-benar cocok, dengan
+ * memperhitungkan string literal supaya kurung di dalam teks summary
+ * tidak ikut kehitung), lalu buang sisanya sebelum di-JSON.parse.
+ */
+function extractJsonSpan(text: string, open: "{" | "[", close: "}" | "]"): string {
+  const start = text.indexOf(open);
+  if (start === -1) throw new Error(`Respons AI tidak mengandung karakter "${open}" — bukan JSON.`);
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === open) {
+      depth++;
+    } else if (ch === close) {
+      depth--;
+      if (depth === 0) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+
+  throw new Error("Respons AI terpotong / kurung JSON tidak lengkap (kemungkinan kehabisan maxOutputTokens).");
+}
+
+function parseJsonObjectFromAi(rawText: string): any {
+  const cleaned = rawText.replace(/```json|```/g, "").trim();
+  try {
+    const jsonSpan = extractJsonSpan(cleaned, "{", "}");
+    return JSON.parse(jsonSpan);
+  } catch (err: any) {
+    // Tandai sebagai retryable — kemungkinan besar cuma Gemini "kepleset"
+    // nyelipin teks di luar JSON sekali ini, percobaan berikutnya biasanya beres.
+    err.isJsonParseError = true;
+    throw err;
+  }
+}
+
+function parseJsonArrayFromAi(rawText: string): any[] {
+  const cleaned = rawText.replace(/```json|```/g, "").trim();
+  try {
+    const jsonSpan = extractJsonSpan(cleaned, "[", "]");
+    return JSON.parse(jsonSpan);
+  } catch (err: any) {
+    err.isJsonParseError = true;
+    throw err;
+  }
+}
+
 // gemini-3.1-flash-lite = model ringan/cepat generasi terbaru (GA).
 // gemini-2.5-flash-lite sudah TIDAK BISA dipakai API key baru per pertengahan 2026.
 // Bisa dioverride lewat env GEMINI_MODEL kalau mau pakai model lain.
@@ -178,8 +248,7 @@ Tugas kamu, kembalikan HANYA JSON valid (tanpa markdown, tanpa penjelasan tambah
     const data = await res.json();
     const textBlock: string =
       data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-    const cleaned = textBlock.replace(/```json|```/g, "").trim();
-    return JSON.parse(cleaned);
+    return parseJsonObjectFromAi(textBlock);
   });
 
   return {
@@ -254,8 +323,7 @@ Tugas kamu, kembalikan HANYA JSON array valid (tanpa markdown, tanpa penjelasan)
       const data = await res.json();
       const textBlock: string =
         data.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
-      const cleaned = textBlock.replace(/```json|```/g, "").trim();
-      return JSON.parse(cleaned) as any[];
+      return parseJsonArrayFromAi(textBlock);
     });
 
     for (const parsed of parsedArray) {
