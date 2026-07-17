@@ -41,6 +41,16 @@ enum AiJobStatus {
   FAILED
 }
 
+// Jenis konten tujuan hasil AI — dulu AI Assistant cuma bisa bikin Berita,
+// sekarang bisa juga langsung ngisi tab Perangkat Desa, UMKM, Galeri, Pengumuman.
+enum AiContentType {
+  BERITA
+  UMKM
+  GALERI
+  PERANGKAT_DESA
+  PENGUMUMAN
+}
+
 // ---------- Auth ----------
 
 model User {
@@ -101,6 +111,7 @@ model Berita {
   excerpt     String        @db.Text
   content     String        @db.LongText
   coverImage  String?
+  images      Json?         // galeri gambar tambahan yang ikut ke-scrape dari post asli
   category    String        @default("Umum")
   tags        String?       // comma separated
   status      ContentStatus @default(DRAFT)
@@ -291,14 +302,16 @@ model Kontak {
 // ---------- AI Assistant (scraping & summarize) ----------
 
 model AiSource {
-  id          String     @id @default(cuid())
-  name        String     // nama sumber, e.g. "Website Kecamatan Jenangan"
+  id          String        @id @default(cuid())
+  name        String        // nama sumber, e.g. "Website Kecamatan Jenangan"
   url         String
-  type        SourceType @default(MANUAL_LINK)
-  platform    String?    // "wordpress" kalau situs WP (bisa di-scrape via wp-json, 0 kuota AI)
-  isActive    Boolean    @default(true)
+  type        SourceType    @default(MANUAL_LINK)
+  platform    String?       // "wordpress" kalau situs WP (bisa di-scrape via wp-json, 0 kuota AI)
+  contentType AiContentType @default(BERITA) // tab tujuan: Berita/UMKM/Galeri/Perangkat Desa/Pengumuman
+  autoApprove Boolean       @default(false)  // kalau true: hasil scrape langsung publish otomatis, admin gak perlu review satu-satu
+  isActive    Boolean       @default(true)
   lastCheckedAt DateTime?
-  createdAt   DateTime   @default(now())
+  createdAt   DateTime      @default(now())
 
   aiJobs      AiJob[]
 
@@ -306,32 +319,41 @@ model AiSource {
 }
 
 model AiJob {
-  id              String      @id @default(cuid())
-  sourceType      SourceType  @default(MANUAL_LINK)
-  sourceUrl       String?     @db.Text
+  id              String        @id @default(cuid())
+  sourceType      SourceType    @default(MANUAL_LINK)
+  sourceUrl       String?       @db.Text
   aiSourceId      String?
-  aiSource        AiSource?   @relation(fields: [aiSourceId], references: [id])
+  aiSource        AiSource?     @relation(fields: [aiSourceId], references: [id])
 
-  status          AiJobStatus @default(PENDING)
+  contentType     AiContentType @default(BERITA) // tab tujuan hasil job ini: Berita/UMKM/Galeri/Perangkat Desa/Pengumuman
 
-  rawExtract      String?     @db.LongText // hasil scraping mentah
-  summary         String?     @db.LongText // ringkasan AI
+  status          AiJobStatus   @default(PENDING)
+
+  rawExtract      String?       @db.LongText // hasil scraping mentah
+  summary         String?       @db.LongText // ringkasan AI
   suggestedTitle  String?
   suggestedSlug   String?
   suggestedMetaDescription String? @db.Text
   suggestedTags   String?
 
+  featuredImage       String?   @db.Text // gambar utama/unggulan yang ikut ke-scrape dari post asli
+  contentImages        Json?    // daftar gambar lain di dalam post (kalau ada)
+  originalPublishedAt  DateTime? // tanggal publish ASLI dari sumber (bukan tanggal scrape) — dipakai buat urutan & tanggal terbit final
+
   reviewedById    String?
-  reviewedBy      User?       @relation(fields: [reviewedById], references: [id])
-  reviewNote      String?     @db.Text
+  reviewedBy      User?         @relation(fields: [reviewedById], references: [id])
+  reviewNote      String?       @db.Text
 
-  beritaId        String?     @unique
-  berita          Berita?     @relation(fields: [beritaId], references: [id])
+  beritaId        String?       @unique
+  berita          Berita?       @relation(fields: [beritaId], references: [id])
 
-  errorMessage    String?     @db.Text
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  resultEntityId  String?       // id entitas hasil publish kalau contentType selain BERITA (UMKM/Galeri/Perangkat/Pengumuman)
 
+  errorMessage    String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([contentType, status])
   @@map("ai_jobs")
 }
 

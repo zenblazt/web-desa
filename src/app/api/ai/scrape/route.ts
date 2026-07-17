@@ -20,13 +20,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { type, url, aiSourceId } = body as {
+    const { type, url, aiSourceId, contentType } = body as {
       type: "MANUAL_LINK" | "AUTO_SEARCH";
       url?: string;
       aiSourceId?: string;
+      contentType?: string;
     };
 
     let targetUrl = url;
+    let resolvedContentType = contentType ?? "BERITA";
 
     if (type === "AUTO_SEARCH") {
       if (!aiSourceId) {
@@ -37,6 +39,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Sumber tidak ditemukan / nonaktif" }, { status: 404 });
       }
       targetUrl = source.url;
+      resolvedContentType = contentType ?? source.contentType;
       await prisma.aiSource.update({
         where: { id: source.id },
         data: { lastCheckedAt: new Date() },
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest) {
         sourceType: type,
         sourceUrl: targetUrl,
         aiSourceId: type === "AUTO_SEARCH" ? aiSourceId : undefined,
+        contentType: resolvedContentType as any,
         status: "RUNNING",
       },
     });
@@ -86,11 +90,14 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const contentType = req.nextUrl.searchParams.get("contentType");
+
   const jobs = await prisma.aiJob.findMany({
+    where: contentType ? { contentType: contentType as any } : undefined,
     orderBy: { createdAt: "desc" },
     include: { aiSource: true, berita: true },
     take: 50,

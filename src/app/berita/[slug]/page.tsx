@@ -46,6 +46,18 @@ export default async function BeritaDetailPage({ params }: Props) {
           {item.content}
         </div>
 
+        {Array.isArray(item.images) && (item.images as string[]).filter((src) => src !== item.coverImage).length > 0 && (
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {(item.images as string[])
+              .filter((src) => src !== item.coverImage)
+              .map((src) => (
+                <div key={src} className="relative aspect-square overflow-hidden rounded-xl bg-muted">
+                  <Image src={src} alt={item.title} fill className="object-cover" />
+                </div>
+              ))}
+          </div>
+        )}
+
         {item.sourceUrl && (
           <p className="mt-6 text-xs text-muted-foreground">
             Sumber: <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">{item.sourceUrl}</a>

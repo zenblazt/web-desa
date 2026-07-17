@@ -1,8 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import useSWR from "swr";
-import { Sparkles, Link2, Radar, Plus, Check, X, Loader2, ExternalLink, Globe, Search, Gauge } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
+import {
+  Sparkles, Link2, Radar, Plus, Check, X, Loader2, ExternalLink, Globe, Search, Gauge,
+  CheckCheck, Trash2, ImageIcon, Newspaper, Store, GalleryHorizontal, Users, Megaphone,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,20 +16,46 @@ import { Badge } from "@/components/ui/badge";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-export default function AiAssistantPage() {
+const CONTENT_TYPES = [
+  { value: "BERITA", label: "Berita", icon: Newspaper },
+  { value: "UMKM", label: "UMKM", icon: Store },
+  { value: "GALERI", label: "Galeri", icon: GalleryHorizontal },
+  { value: "PERANGKAT_DESA", label: "Perangkat Desa", icon: Users },
+  { value: "PENGUMUMAN", label: "Pengumuman", icon: Megaphone },
+] as const;
+
+export default function AiAssistantPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <AiAssistantPage />
+    </Suspense>
+  );
+}
+
+function AiAssistantPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeType = (searchParams.get("type") ?? "BERITA").toUpperCase();
+
+  function setType(t: string) {
+    router.push(`/admin/ai-assistant?type=${t}`);
+  }
+
   const { data: sourcesData, mutate: mutateSources } = useSWR("/api/ai/sources", fetcher);
-  const { data: jobsData, mutate: mutateJobs } = useSWR("/api/ai/scrape", fetcher, { refreshInterval: 5000 });
+  const { data: jobsData, mutate: mutateJobs } = useSWR(`/api/ai/scrape?contentType=${activeType}`, fetcher, { refreshInterval: 5000 });
   const { data: quotaData, mutate: mutateQuota } = useSWR("/api/ai/quota", fetcher, { refreshInterval: 10000 });
 
   const sources = sourcesData?.sources ?? [];
   const jobs = jobsData?.jobs ?? [];
-  const activeSources = sources.filter((s: any) => s.isActive);
+  const activeSources = sources.filter((s: any) => s.isActive && s.contentType === activeType);
   const wpSources = activeSources.filter((s: any) => s.platform === "wordpress");
+  const needsReviewJobs = jobs.filter((j: any) => j.status === "NEEDS_REVIEW");
 
   const [manualUrl, setManualUrl] = React.useState("");
   const [newSourceName, setNewSourceName] = React.useState("");
   const [newSourceUrl, setNewSourceUrl] = React.useState("");
   const [newSourceIsWp, setNewSourceIsWp] = React.useState(false);
+  const [newSourceAutoApprove, setNewSourceAutoApprove] = React.useState(false);
   const [runningManual, setRunningManual] = React.useState(false);
   const [runningAutoId, setRunningAutoId] = React.useState<string | null>(null);
 
@@ -36,13 +68,16 @@ export default function AiAssistantPage() {
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [queueingUrl, setQueueingUrl] = React.useState<string | null>(null);
 
+  const [approvingAll, setApprovingAll] = React.useState(false);
+  const [approveAllMsg, setApproveAllMsg] = React.useState<string | null>(null);
+
   async function runManualLink() {
     if (!manualUrl.trim()) return;
     setRunningManual(true);
     await fetch("/api/ai/scrape", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "MANUAL_LINK", url: manualUrl.trim() }),
+      body: JSON.stringify({ type: "MANUAL_LINK", url: manualUrl.trim(), contentType: activeType }),
     });
     setManualUrl("");
     setRunningManual(false);
@@ -54,7 +89,7 @@ export default function AiAssistantPage() {
     await fetch("/api/ai/scrape", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "AUTO_SEARCH", aiSourceId }),
+      body: JSON.stringify({ type: "AUTO_SEARCH", aiSourceId, contentType: activeType }),
     });
     setRunningAutoId(null);
     mutateJobs();
@@ -70,11 +105,29 @@ export default function AiAssistantPage() {
         url: newSourceUrl,
         type: newSourceIsWp ? "WP_JSON" : "AUTO_SEARCH",
         platform: newSourceIsWp ? "wordpress" : undefined,
+        contentType: activeType,
+        autoApprove: newSourceAutoApprove,
       }),
     });
     setNewSourceName("");
     setNewSourceUrl("");
     setNewSourceIsWp(false);
+    setNewSourceAutoApprove(false);
+    mutateSources();
+  }
+
+  async function toggleAutoApprove(source: any) {
+    await fetch(`/api/ai/sources/${source.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ autoApprove: !source.autoApprove }),
+    });
+    mutateSources();
+  }
+
+  async function removeSource(id: string) {
+    if (!confirm("Hapus sumber ini?")) return;
+    await fetch(`/api/ai/sources/${id}`, { method: "DELETE" });
     mutateSources();
   }
 
@@ -90,13 +143,18 @@ export default function AiAssistantPage() {
     setRunningWpId(null);
     if (data.error) {
       setWpResultMsg(`Gagal: ${data.error}`);
+    } else if (data.autoApprove) {
+      setWpResultMsg(
+        `${data.published} post langsung dipublish otomatis${data.skipped ? `, ${data.skipped} dilewati (sudah ada)` : ""}.`
+      );
     } else {
       setWpResultMsg(
-        `${data.created} post baru diimpor${data.skipped ? `, ${data.skipped} dilewati (sudah ada)` : ""}.`
+        `${data.created} post baru diimpor, urut sesuai tanggal aslinya${data.skipped ? `, ${data.skipped} dilewati (sudah ada)` : ""}. Cek di "Perlu Review" di bawah.`
       );
     }
     mutateJobs();
     mutateQuota();
+    mutateSources();
   }
 
   async function runSearch() {
@@ -117,12 +175,33 @@ export default function AiAssistantPage() {
     await fetch("/api/ai/scrape", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "MANUAL_LINK", url }),
+      body: JSON.stringify({ type: "MANUAL_LINK", url, contentType: activeType }),
     });
     setQueueingUrl(null);
     setSearchResults((prev) => prev.filter((r) => r.url !== url));
     mutateJobs();
   }
+
+  async function approveAll() {
+    if (needsReviewJobs.length === 0) return;
+    if (!confirm(`Setujui & publish ${needsReviewJobs.length} item sekaligus tanpa dicek satu-satu?`)) return;
+    setApprovingAll(true);
+    setApproveAllMsg(null);
+    const res = await fetch("/api/ai/approve-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentType: activeType }),
+    });
+    const data = await res.json();
+    setApprovingAll(false);
+    setApproveAllMsg(
+      data.error ? `Gagal: ${data.error}` : `${data.approved} item berhasil dipublish otomatis${data.failed ? `, ${data.failed} gagal` : ""}.`
+    );
+    mutateJobs();
+    mutateQuota();
+  }
+
+  const activeTypeMeta = CONTENT_TYPES.find((c) => c.value === activeType) ?? CONTENT_TYPES[0];
 
   return (
     <div className="space-y-6">
@@ -131,8 +210,29 @@ export default function AiAssistantPage() {
           <Sparkles className="h-6 w-6 text-primary" /> AI Assistant
         </h1>
         <p className="text-sm text-muted-foreground">
-          Bantu bikin draft berita otomatis dari sumber resmi. Kasih link manual, biarkan AI cari sendiri, scrape situs WordPress (0 kuota AI), atau cari info terbaru lewat search engine (hemat).
+          Bantu isi konten otomatis dari sumber resmi — kasih link manual, biarkan AI cari sendiri, scrape situs WordPress (0 kuota AI, gambar &amp; tanggal asli ikut terbawa), atau cari info terbaru lewat search engine. Bisa disetel otomatis publish supaya admin gak perlu review satu-satu.
         </p>
+      </div>
+
+      {/* Tab jenis konten tujuan */}
+      <div className="flex flex-wrap gap-2">
+        {CONTENT_TYPES.map((c) => {
+          const Icon = c.icon;
+          const isActive = c.value === activeType;
+          return (
+            <button
+              key={c.value}
+              onClick={() => setType(c.value)}
+              className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                isActive
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" /> {c.label}
+            </button>
+          );
+        })}
       </div>
 
       {quotaData && (
@@ -157,6 +257,9 @@ export default function AiAssistantPage() {
                 </span>
               </>
             )}
+            <span className="text-muted-foreground">•</span>
+            <span className="font-medium">Perlu review ({activeTypeMeta.label}):</span>
+            <Badge variant={needsReviewJobs.length > 0 ? "secondary" : "outline"}>{needsReviewJobs.length}</Badge>
           </CardContent>
         </Card>
       )}
@@ -168,7 +271,7 @@ export default function AiAssistantPage() {
             <Link2 className="h-5 w-5 text-primary" />
             <div>
               <CardTitle className="text-base">Opsi 1 — Kasih Link Manual</CardTitle>
-              <p className="text-xs text-muted-foreground">Tempel URL berita/pengumuman resmi, AI akan ringkas + buatkan SEO.</p>
+              <p className="text-xs text-muted-foreground">Tempel URL sumber resmi, AI akan ringkas + siapkan draft {activeTypeMeta.label}.</p>
             </div>
           </CardHeader>
           <CardContent className="flex gap-2">
@@ -190,36 +293,50 @@ export default function AiAssistantPage() {
             <div>
               <CardTitle className="text-base">Opsi 2 — AI Cari Sendiri</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Pilih sumber resmi terdaftar, AI akan cek berita terbaru berdasarkan tanggal. Minimal 2 sumber aktif direkomendasikan.
+                Pilih sumber resmi terdaftar untuk tab {activeTypeMeta.label}, AI cek info terbaru berdasarkan tanggal.
               </p>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {activeSources.length === 0 && (
-              <p className="text-sm text-muted-foreground">Belum ada sumber terdaftar. Tambahkan di bawah.</p>
+              <p className="text-sm text-muted-foreground">Belum ada sumber terdaftar untuk tab {activeTypeMeta.label}. Tambahkan di bawah.</p>
             )}
             {activeSources.map((s: any) => (
-              <div key={s.id} className="flex items-center justify-between rounded-xl border border-border p-3">
+              <div key={s.id} className="flex items-center justify-between gap-2 rounded-xl border border-border p-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{s.name}</p>
                   <p className="truncate text-xs text-muted-foreground">{s.url}</p>
                 </div>
-                <Button size="sm" onClick={() => runAutoSearch(s.id)} disabled={runningAutoId === s.id}>
-                  {runningAutoId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Cek Sekarang"}
-                </Button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Button size="sm" onClick={() => runAutoSearch(s.id)} disabled={runningAutoId === s.id}>
+                    {runningAutoId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Cek Sekarang"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => removeSource(s.id)} className="text-destructive">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
             ))}
 
-            <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center">
-              <Input placeholder="Nama sumber (mis. Website Kecamatan Jenangan)" value={newSourceName} onChange={(e) => setNewSourceName(e.target.value)} />
-              <Input placeholder="URL sumber" value={newSourceUrl} onChange={(e) => setNewSourceUrl(e.target.value)} />
-              <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                <input type="checkbox" checked={newSourceIsWp} onChange={(e) => setNewSourceIsWp(e.target.checked)} />
-                Situs WordPress
-              </label>
-              <Button variant="outline" onClick={addSource} className="shrink-0">
-                <Plus className="h-4 w-4" /> Tambah
-              </Button>
+            <div className="flex flex-col gap-2 border-t border-border pt-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input placeholder="Nama sumber (mis. Website Kecamatan Jenangan)" value={newSourceName} onChange={(e) => setNewSourceName(e.target.value)} />
+                <Input placeholder="URL sumber" value={newSourceUrl} onChange={(e) => setNewSourceUrl(e.target.value)} />
+                <Button variant="outline" onClick={addSource} className="shrink-0">
+                  <Plus className="h-4 w-4" /> Tambah
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={newSourceIsWp} onChange={(e) => setNewSourceIsWp(e.target.checked)} />
+                  Situs WordPress
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={newSourceAutoApprove} onChange={(e) => setNewSourceAutoApprove(e.target.checked)} />
+                  Otomatis publish (admin gak perlu review manual)
+                </label>
+                <span>Sumber ini akan mengisi tab <strong>{activeTypeMeta.label}</strong>.</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -231,23 +348,29 @@ export default function AiAssistantPage() {
             <div>
               <CardTitle className="text-base">Opsi 3 — Scraper Situs Resmi (WordPress)</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Tarik semua post lewat REST API WordPress-nya langsung — data terstruktur, <strong>gak butuh AI sama sekali</strong> (0 kuota Gemini). Tandai sumber sebagai &quot;Situs WordPress&quot; dulu.
+                Tarik semua post lewat REST API WordPress-nya langsung — data terstruktur (judul, isi, <strong>gambar unggulan &amp; gambar di dalam post</strong>, tanggal asli), <strong>gak butuh AI sama sekali</strong> (0 kuota Gemini). Urutan hasil scrape otomatis mengikuti tanggal post asli. Tandai sumber sebagai &quot;Situs WordPress&quot; dulu di kartu sebelah.
               </p>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {wpSources.length === 0 && (
-              <p className="text-sm text-muted-foreground">Belum ada sumber bertipe WordPress. Tambahkan lewat form di kartu sebelah.</p>
+              <p className="text-sm text-muted-foreground">Belum ada sumber bertipe WordPress untuk tab {activeTypeMeta.label}. Tambahkan lewat form di kartu sebelah.</p>
             )}
             {wpSources.map((s: any) => (
-              <div key={s.id} className="flex items-center justify-between rounded-xl border border-border p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{s.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{s.url}</p>
+              <div key={s.id} className="space-y-2 rounded-xl border border-border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{s.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{s.url}</p>
+                  </div>
+                  <Button size="sm" onClick={() => runWpScrape(s.id)} disabled={runningWpId === s.id}>
+                    {runningWpId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Scrape Sekarang"}
+                  </Button>
                 </div>
-                <Button size="sm" onClick={() => runWpScrape(s.id)} disabled={runningWpId === s.id}>
-                  {runningWpId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Scrape Sekarang"}
-                </Button>
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <input type="checkbox" checked={s.autoApprove} onChange={() => toggleAutoApprove(s)} />
+                  Otomatis publish tiap hasil scrape (admin gak perlu acc satu-satu)
+                </label>
               </div>
             ))}
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -304,11 +427,18 @@ export default function AiAssistantPage() {
 
       {/* Antrian review AI job */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Perlu Review ({jobs.filter((j: any) => j.status === "NEEDS_REVIEW").length})</CardTitle>
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+          <CardTitle className="text-base">Perlu Review — {activeTypeMeta.label} ({needsReviewJobs.length})</CardTitle>
+          {needsReviewJobs.length > 0 && (
+            <Button size="sm" onClick={approveAll} disabled={approvingAll}>
+              {approvingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
+              Setujui Semua Sekarang
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
-          {jobs.length === 0 && <p className="text-sm text-muted-foreground">Belum ada job AI.</p>}
+          {approveAllMsg && <p className="text-sm text-muted-foreground">{approveAllMsg}</p>}
+          {jobs.length === 0 && <p className="text-sm text-muted-foreground">Belum ada job AI untuk tab {activeTypeMeta.label}.</p>}
           {jobs.map((job: any) => (
             <AiJobCard key={job.id} job={job} onDone={() => mutateJobs()} />
           ))}
@@ -323,7 +453,10 @@ function AiJobCard({ job, onDone }: { job: any; onDone: () => void }) {
   const [summary, setSummary] = React.useState(job.summary ?? "");
   const [metaDescription, setMetaDescription] = React.useState(job.suggestedMetaDescription ?? "");
   const [tags, setTags] = React.useState(job.suggestedTags ?? "");
+  const [useImage, setUseImage] = React.useState(!!job.featuredImage);
   const [busy, setBusy] = React.useState(false);
+
+  const images: string[] = Array.isArray(job.contentImages) ? job.contentImages : [];
 
   const statusVariant: Record<string, any> = {
     NEEDS_REVIEW: "secondary",
@@ -344,7 +477,7 @@ function AiJobCard({ job, onDone }: { job: any; onDone: () => void }) {
         jobId: job.id,
         action: "approve",
         publish,
-        editedFields: { title, summary, metaDescription, tags },
+        editedFields: { title, summary, metaDescription, tags, image: useImage ? job.featuredImage : null },
       }),
     });
     setBusy(false);
@@ -374,6 +507,11 @@ function AiJobCard({ job, onDone }: { job: any; onDone: () => void }) {
               ] ?? "Manual Link"
             }
           </Badge>
+          {job.originalPublishedAt && (
+            <span className="text-xs text-muted-foreground">
+              Tanggal asli: {new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(job.originalPublishedAt))}
+            </span>
+          )}
         </div>
         {job.sourceUrl && (
           <a href={job.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">
@@ -388,13 +526,33 @@ function AiJobCard({ job, onDone }: { job: any; onDone: () => void }) {
 
       {job.status === "NEEDS_REVIEW" && (
         <div className="mt-3 space-y-2.5">
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Judul SEO" />
+          {(job.featuredImage || images.length > 0) && (
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap gap-2">
+                {(job.featuredImage ? [job.featuredImage, ...images.filter((i) => i !== job.featuredImage)] : images)
+                  .slice(0, 6)
+                  .map((src: string) => (
+                    <div key={src} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+                      <Image src={src} alt="Gambar dari sumber" fill sizes="64px" className="object-cover" unoptimized />
+                    </div>
+                  ))}
+              </div>
+              {job.featuredImage && (
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <input type="checkbox" checked={useImage} onChange={(e) => setUseImage(e.target.checked)} />
+                  <ImageIcon className="h-3.5 w-3.5" /> Pakai gambar ini sebagai cover
+                </label>
+              )}
+            </div>
+          )}
+
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Judul" />
           <textarea
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             rows={4}
             className="w-full rounded-xl border border-input bg-background p-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="Ringkasan"
+            placeholder="Ringkasan / isi"
           />
           <Input value={metaDescription} onChange={(e) => setMetaDescription(e.target.value)} placeholder="Meta description" />
           <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags (pisah koma)" />

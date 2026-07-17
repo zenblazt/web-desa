@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImageUploader } from "@/components/admin/image-uploader";
+import { AiTabWidget } from "@/components/admin/ai-tab-widget";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -54,6 +55,8 @@ export default function AdminUmkmPage() {
         <h1 className="text-2xl font-bold tracking-tight">UMKM</h1>
         <p className="text-sm text-muted-foreground">Kelola direktori UMKM warga desa.</p>
       </div>
+
+      <AiTabWidget contentType="UMKM" />
 
       <Card>
         <CardHeader><CardTitle className="text-base">Tambah UMKM</CardTitle></CardHeader>

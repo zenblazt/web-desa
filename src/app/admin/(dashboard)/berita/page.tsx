@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
+import { AiTabWidget } from "@/components/admin/ai-tab-widget";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ export default async function AdminBeritaPage() {
           </Button>
         </div>
       </div>
+
+      <AiTabWidget contentType="BERITA" />
 
       <Card className="divide-y divide-border p-0">
         {items.length === 0 && <p className="p-5 text-sm text-muted-foreground">Belum ada berita.</p>}

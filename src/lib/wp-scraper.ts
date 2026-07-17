@@ -19,9 +19,10 @@ export interface WpPostItem {
   excerpt: string;
   content: string; // sudah di-strip dari tag HTML
   url: string;
-  publishedAt: string; // ISO date
+  publishedAt: string; // ISO date — tanggal publish ASLI dari WP, dipakai buat urutan & tanggal terbit final
   categories: string[];
-  featuredImage: string | null;
+  featuredImage: string | null; // gambar unggulan post
+  images: string[]; // semua gambar yang kepakai di post ini (featured di indeks 0 kalau ada, lalu gambar-gambar di body)
 }
 
 function stripHtml(html: string): string {
@@ -34,6 +35,19 @@ function stripHtml(html: string): string {
     .replace(/&#8220;|&#8221;/g, '"')
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Ambil semua src gambar <img> di dalam HTML mentah sebuah post, urut sesuai kemunculan */
+function extractImagesFromHtml(html: string, max = 8): string[] {
+  const urls: string[] = [];
+  const re = /<img[^>]+src=["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) && urls.length < max) {
+    const src = m[1];
+    // skip data-uri kecil (placeholder lazyload) & ikon
+    if (src && !src.startsWith("data:") && !urls.includes(src)) urls.push(src);
+  }
+  return urls;
 }
 
 function normalizeBaseUrl(raw: string): string {
@@ -61,7 +75,10 @@ export async function fetchWpPosts(
     const params = new URLSearchParams({
       per_page: String(perPage),
       page: String(page),
-      _fields: "id,title,excerpt,content,link,date,categories,featured_media,_links",
+      // _embed=1 supaya wp:featuredmedia ikut dalam 1 request yang sama —
+      // gambar unggulan ke-scrape tanpa request tambahan per post (tetap 0 kuota AI).
+      _embed: "1",
+      _fields: "id,title,excerpt,content,link,date,categories,featured_media,_links,_embedded",
     });
     if (opts.categoryId) params.set("categories", String(opts.categoryId));
 
@@ -76,21 +93,35 @@ export async function fetchWpPosts(
     if (!Array.isArray(data) || data.length === 0) break;
 
     for (const post of data) {
+      const rawContent: string = post.content?.rendered ?? "";
+      const featuredImage: string | null =
+        post._embedded?.["wp:featuredmedia"]?.[0]?.source_url ?? null;
+      const inlineImages = extractImagesFromHtml(rawContent);
+      const images = featuredImage
+        ? [featuredImage, ...inlineImages.filter((u) => u !== featuredImage)]
+        : inlineImages;
+
       items.push({
         wpId: post.id,
         title: stripHtml(post.title?.rendered ?? ""),
         excerpt: stripHtml(post.excerpt?.rendered ?? "").slice(0, 300),
-        content: stripHtml(post.content?.rendered ?? "").slice(0, 12000), // batasi, hemat token kalau nanti diringkas AI
+        content: stripHtml(rawContent).slice(0, 12000), // batasi, hemat token kalau nanti diringkas AI
         url: post.link,
         publishedAt: post.date,
         categories: (post.categories ?? []).map((id: number) => categoryMap.get(id) ?? String(id)),
-        featuredImage: null, // diisi belakangan lewat fetchWpFeaturedImage kalau perlu, biar hemat request
+        featuredImage,
+        images,
       });
     }
 
     const totalPages = Number(res.headers.get("X-WP-TotalPages") ?? "1");
     if (page >= totalPages) break;
   }
+
+  // Urutkan berdasarkan tanggal post ASLI (kronologis, paling lama dulu) —
+  // supaya urutan hasil scrape & urutan publish-nya ngikutin timeline asli situs sumber,
+  // bukan urutan kedatangan halaman pagination.
+  items.sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime());
 
   return items;
 }

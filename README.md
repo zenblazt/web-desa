@@ -161,6 +161,25 @@ perangkat desa yang isi manual), berikut yang masih perlu kamu putuskan/atur:
    (WordPress) tetap jalan normal karena tidak butuh API key tambahan.
    *(Catatan: bukan pakai Google Custom Search — API itu sudah ditutup
    untuk pelanggan baru per 2026.)*
+7. **AI Assistant sekarang multi-tab + auto-publish + gambar ikut ke-scrape.**
+   Perubahan di update ini:
+   - Scraper WordPress (`wp-scraper.ts`) sekarang ambil **gambar unggulan
+     & gambar di dalam post** (lewat `_embed`, 0 request tambahan) dan
+     **mengurutkan hasil scrape kronologis berdasarkan tanggal post ASLI**
+     (bukan urutan pagination). Tanggal publish final di Berita/Pengumuman
+     juga ikut memakai tanggal asli ini, bukan waktu admin klik approve.
+   - AI Assistant sekarang bisa mengisi tab **Berita, UMKM, Galeri,
+     Perangkat Desa, dan Pengumuman** — pilih tab-nya di bagian atas
+     halaman `/admin/ai-assistant`, atau isi lewat widget "AI Assistant"
+     kecil yang ada di masing-masing tab tersebut (lengkap dengan info
+     kuota Gemini/search & jumlah item yang perlu direview).
+   - Ada tombol **"Setujui Semua Sekarang"** untuk approve + publish semua
+     draft yang `NEEDS_REVIEW` sekaligus (bukan satu-satu), dan opsi
+     **"Otomatis publish"** per sumber (`autoApprove`) supaya hasil scrape
+     langsung tayang tanpa admin perlu buka dashboard sama sekali.
+   - Schema Prisma berubah lagi (enum `AiContentType` baru; kolom baru di
+     `AiSource`/`AiJob`/`Berita` untuk gambar, tanggal asli, & tipe konten)
+     — **jalankan ulang `npx prisma db push` setelah deploy update ini.**
 
 ## Deploy ke Railway
 

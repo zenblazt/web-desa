@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fetchWpPosts } from "@/lib/wp-scraper";
 import { summarizeAndGenerateSeoBatch } from "@/lib/ai-assistant";
+import { publishAiJob } from "@/lib/ai-publish";
 import { generateSlug } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sumber tidak ditemukan / nonaktif" }, { status: 404 });
     }
 
+    // fetchWpPosts sudah mengurutkan hasilnya kronologis berdasarkan tanggal
+    // post ASLI (paling lama dulu) — jadi urutan scrape & urutan publish
+    // ngikutin timeline situs sumber, bukan urutan kedatangan halaman.
     const posts = await fetchWpPosts(source.url, { maxPages: maxPages ?? 3, perPage: 20 });
 
     // Dedupe terhadap yang sudah ada
@@ -56,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     if (newPosts.length === 0) {
       await prisma.aiSource.update({ where: { id: source.id }, data: { lastCheckedAt: new Date() } });
-      return NextResponse.json({ created: 0, skipped: posts.length, message: "Tidak ada post baru." });
+      return NextResponse.json({ created: 0, published: 0, skipped: posts.length, message: "Tidak ada post baru." });
     }
 
     let drafts: { summary: string; suggestedTitle: string; suggestedSlug: string; suggestedMetaDescription: string; suggestedTags: string }[];
@@ -78,6 +82,8 @@ export async function POST(req: NextRequest) {
       }));
     }
 
+    // Buat AiJob dulu (tetap tersimpan sebagai arsip/audit), urutannya
+    // dijaga sesuai `newPosts` (kronologis) lewat $transaction sequential.
     const createdJobs = await prisma.$transaction(
       newPosts.map((post, i) =>
         prisma.aiJob.create({
@@ -85,6 +91,7 @@ export async function POST(req: NextRequest) {
             sourceType: "WP_JSON",
             sourceUrl: post.url,
             aiSourceId: source.id,
+            contentType: source.contentType,
             status: "NEEDS_REVIEW",
             rawExtract: post.content,
             summary: drafts[i]?.summary,
@@ -92,17 +99,45 @@ export async function POST(req: NextRequest) {
             suggestedSlug: drafts[i]?.suggestedSlug,
             suggestedMetaDescription: drafts[i]?.suggestedMetaDescription,
             suggestedTags: drafts[i]?.suggestedTags,
+            featuredImage: post.featuredImage,
+            contentImages: post.images.length > 0 ? post.images : undefined,
+            originalPublishedAt: new Date(post.publishedAt),
           },
         })
       )
     );
 
+    let publishedCount = 0;
+    const publishErrors: string[] = [];
+
+    // Kalau sumber ini di-set "Otomatis publish", langsung terbitkan semua
+    // job yang baru dibuat tadi (urut kronologis) — admin ga perlu review manual.
+    if (source.autoApprove) {
+      for (const job of createdJobs) {
+        try {
+          const result = await publishAiJob({ job, authorId: (session.user as any).id, publish: true });
+          await prisma.aiJob.update({
+            where: { id: job.id },
+            data: { status: "PUBLISHED", reviewedById: (session.user as any).id, beritaId: result.beritaId, resultEntityId: result.entityId },
+          });
+          publishedCount++;
+        } catch (err: any) {
+          publishErrors.push(err.message);
+          await prisma.aiJob.update({ where: { id: job.id }, data: { errorMessage: err.message } });
+        }
+      }
+    }
+
     await prisma.aiSource.update({ where: { id: source.id }, data: { lastCheckedAt: new Date() } });
 
     return NextResponse.json({
       created: createdJobs.length,
+      published: publishedCount,
+      needsReview: createdJobs.length - publishedCount,
       skipped: posts.length - newPosts.length,
       usedAi: !!useAi,
+      autoApprove: !!source.autoApprove,
+      publishErrors: publishErrors.length ? publishErrors : undefined,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

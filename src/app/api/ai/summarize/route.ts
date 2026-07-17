@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { publishAiJob } from "@/lib/ai-publish";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
       metaDescription?: string;
       tags?: string;
       category?: string;
+      image?: string | null;
     };
     publish?: boolean;
   };
@@ -41,44 +43,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ job: updated });
   }
 
-  // action === "approve" -> buat/publish Berita
-  const title = editedFields?.title ?? job.suggestedTitle ?? "Tanpa Judul";
-  const slug = editedFields?.slug ?? job.suggestedSlug ?? `berita-${Date.now()}`;
-  const summary = editedFields?.summary ?? job.summary ?? "";
-
-  const seoMeta = await prisma.seoMeta.create({
-    data: {
-      metaTitle: title,
-      metaDescription: editedFields?.metaDescription ?? job.suggestedMetaDescription,
-      keywords: editedFields?.tags ?? job.suggestedTags,
-    },
-  });
-
-  const berita = await prisma.berita.create({
-    data: {
-      title,
-      slug,
-      excerpt: summary.slice(0, 200),
-      content: summary,
-      category: editedFields?.category ?? "Umum",
-      tags: editedFields?.tags ?? job.suggestedTags,
-      status: publish ? "PUBLISHED" : "DRAFT",
-      publishedAt: publish ? new Date() : null,
-      sourceUrl: job.sourceUrl,
-      isAiGenerated: true,
+  // action === "approve" -> buat/publish entitas sesuai contentType job ini
+  try {
+    const result = await publishAiJob({
+      job,
       authorId: (session.user as any).id,
-      seoMetaId: seoMeta.id,
-    },
-  });
+      publish: !!publish,
+      editedFields,
+    });
 
-  const updatedJob = await prisma.aiJob.update({
-    where: { id: jobId },
-    data: {
-      status: publish ? "PUBLISHED" : "APPROVED",
-      reviewedById: (session.user as any).id,
-      beritaId: berita.id,
-    },
-  });
+    // UMKM/Galeri/Perangkat Desa langsung "hidup" begitu dibuat (gak punya status draft),
+    // jadi selalu dianggap PUBLISHED. Berita/Pengumuman ngikutin flag `publish`.
+    const hasDraftState = job.contentType === "BERITA" || job.contentType === "PENGUMUMAN";
+    const finalStatus = !hasDraftState || publish ? "PUBLISHED" : "APPROVED";
 
-  return NextResponse.json({ job: updatedJob, berita });
+    const updatedJob = await prisma.aiJob.update({
+      where: { id: jobId },
+      data: {
+        status: finalStatus,
+        reviewedById: (session.user as any).id,
+        beritaId: result.beritaId,
+        resultEntityId: result.entityId,
+      },
+    });
+
+    return NextResponse.json({ job: updatedJob, entityType: result.entityType, entityId: result.entityId });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
 }

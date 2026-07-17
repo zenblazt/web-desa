@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { AiTabWidget } from "@/components/admin/ai-tab-widget";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -55,6 +56,8 @@ export default function AdminPengumumanPage() {
         <h1 className="text-2xl font-bold tracking-tight">Pengumuman</h1>
         <p className="text-sm text-muted-foreground">Kelola pengumuman resmi untuk warga.</p>
       </div>
+
+      <AiTabWidget contentType="PENGUMUMAN" />
 
       <Card>
         <CardHeader><CardTitle className="text-base">Tambah Pengumuman</CardTitle></CardHeader>

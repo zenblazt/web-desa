@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUploader } from "@/components/admin/image-uploader";
+import { AiTabWidget } from "@/components/admin/ai-tab-widget";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -42,6 +43,8 @@ export default function AdminGaleriPage() {
         <h1 className="text-2xl font-bold tracking-tight">Galeri</h1>
         <p className="text-sm text-muted-foreground">Kelola dokumentasi foto kegiatan desa.</p>
       </div>
+
+      <AiTabWidget contentType="GALERI" />
 
       <Card>
         <CardHeader><CardTitle className="text-base">Tambah Foto</CardTitle></CardHeader>
