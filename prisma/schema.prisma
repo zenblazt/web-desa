@@ -380,6 +380,10 @@ model PageVisit {
 model Settings {
   id          String   @id @default("site_settings")
   siteName    String   @default("Desa Tanjungsari")
+  villageName String   @default("Tanjungsari") // nama desa saja, tanpa prefix "Desa"
+  districtName String  @default("Jenangan") // kecamatan
+  regencyName String   @default("Ponorogo") // kabupaten/kota
+  provinceName String  @default("Jawa Timur")
   tagline     String?
   logo        String?
   favicon     String?

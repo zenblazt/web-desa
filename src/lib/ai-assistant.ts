@@ -21,6 +21,7 @@
 import * as cheerio from "cheerio";
 import { generateSlug } from "@/lib/utils";
 import { withGeminiRetry, geminiLimiter } from "@/lib/rate-limiter";
+import { getVillageInfo } from "@/lib/village";
 
 // gemini-3.1-flash-lite = model ringan/cepat generasi terbaru (GA).
 // gemini-2.5-flash-lite sudah TIDAK BISA dipakai API key baru per pertengahan 2026.
@@ -37,9 +38,20 @@ interface ExtractedContent {
   title: string;
   text: string;
   url: string;
+  featuredImage: string | null;
+  contentImages: string[];
+  originalPublishedAt: string | null;
 }
 
-/** Ambil & bersihkan konten utama dari sebuah URL berita/pengumuman resmi */
+function resolveUrl(src: string, base: string): string | null {
+  try {
+    return new URL(src, base).toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Ambil & bersihkan konten utama dari sebuah URL berita/pengumuman resmi (termasuk gambar) */
 export async function extractFromUrl(url: string): Promise<ExtractedContent> {
   const res = await fetch(url, {
     headers: { "User-Agent": "Mozilla/5.0 (compatible; DesaTanjungsariBot/1.0)" },
@@ -49,12 +61,37 @@ export async function extractFromUrl(url: string): Promise<ExtractedContent> {
   const html = await res.text();
   const $ = cheerio.load(html);
 
-  $("script, style, nav, footer, header, iframe, .ads, .advertisement").remove();
+  // Gambar unggulan: og:image dulu, baru twitter:image sebagai fallback.
+  const rawFeatured =
+    $("meta[property='og:image']").attr("content") ||
+    $("meta[name='twitter:image']").attr("content") ||
+    null;
+  const featuredImage = rawFeatured ? resolveUrl(rawFeatured, url) : null;
+
+  // Tanggal publish asli (kalau situs sumber menyediakan meta-nya).
+  const rawPublished =
+    $("meta[property='article:published_time']").attr("content") ||
+    $("time[datetime]").first().attr("datetime") ||
+    null;
+  const originalPublishedAt = rawPublished && !isNaN(new Date(rawPublished).getTime()) ? rawPublished : null;
 
   const title =
     $("meta[property='og:title']").attr("content") ||
     $("h1").first().text().trim() ||
     $("title").text().trim();
+
+  $("script, style, nav, footer, header, iframe, .ads, .advertisement").remove();
+
+  // Gambar-gambar di dalam konten artikel (bukan header/nav/footer/iklan yang sudah dibuang di atas).
+  const contentImages: string[] = [];
+  $("article img, main img, .content img, .post-content img").each((_, el) => {
+    const src = $(el).attr("src") || $(el).attr("data-src");
+    if (!src || src.startsWith("data:")) return;
+    const resolved = resolveUrl(src, url);
+    if (resolved && !contentImages.includes(resolved) && resolved !== featuredImage) {
+      contentImages.push(resolved);
+    }
+  });
 
   // Ambil paragraf-paragraf utama (heuristik sederhana, boleh diganti readability lib)
   const paragraphs: string[] = [];
@@ -65,13 +102,14 @@ export async function extractFromUrl(url: string): Promise<ExtractedContent> {
 
   const text = paragraphs.join("\n\n").slice(0, 12000); // batasi supaya hemat token
 
-  return { title, text, url };
+  return { title, text, url, featuredImage, contentImages: contentImages.slice(0, 8), originalPublishedAt };
 }
 
 /** Cari sumber berita terbaru tentang desa lewat web search (dipanggil dari route AUTO_SEARCH) */
-export async function buildAutoSearchQuery(villageName = "Desa Tanjungsari Kecamatan Jenangan") {
+export async function buildAutoSearchQuery(villageLabel?: string) {
+  const label = villageLabel || (await getVillageInfo()).fullLabel;
   const today = new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date());
-  return `berita terbaru ${villageName} ${today}`;
+  return `berita terbaru ${label} ${today}`;
 }
 
 interface AiDraft {

@@ -11,7 +11,7 @@ export async function LatestNews() {
   const news = await prisma.berita.findMany({
     where: { status: "PUBLISHED" },
     orderBy: { publishedAt: "desc" },
-    take: 3,
+    take: 4,
   });
 
   if (news.length === 0) return null;
@@ -26,7 +26,7 @@ export async function LatestNews() {
           href="/berita"
         />
 
-        <div className="grid gap-5 md:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2">
           {news.map((item) => (
             <Link key={item.id} href={`/berita/${item.slug}`}>
               <Card className="h-full overflow-hidden p-0">

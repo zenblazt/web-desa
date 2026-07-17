@@ -22,6 +22,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { getVillageInfo } from "@/lib/village";
 
 export interface SearchResultItem {
   title: string;
@@ -99,11 +100,10 @@ export async function searchWeb(query: string, num = 5): Promise<SearchResultIte
  * sendiri, lalu buang URL yang sudah pernah diproses (dedupe) — sisanya
  * itu yang benar-benar baru dan layak masuk antrean AI job.
  */
-export async function searchFreshNews(
-  topic = "Desa Tanjungsari Kecamatan Jenangan Ponorogo"
-): Promise<SearchResultItem[]> {
+export async function searchFreshNews(topic?: string): Promise<SearchResultItem[]> {
+  const resolvedTopic = topic || (await getVillageInfo()).fullLabel;
   const today = new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date());
-  const results = await searchWeb(`berita terbaru ${topic} ${today}`, 8);
+  const results = await searchWeb(`berita terbaru ${resolvedTopic} ${today}`, 8);
 
   const [knownBeritaUrls, knownJobUrls] = await Promise.all([
     prisma.berita.findMany({ where: { sourceUrl: { not: null } }, select: { sourceUrl: true } }),

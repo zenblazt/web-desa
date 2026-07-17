@@ -73,6 +73,9 @@ export async function POST(req: NextRequest) {
           suggestedSlug: draft.suggestedSlug,
           suggestedMetaDescription: draft.suggestedMetaDescription,
           suggestedTags: draft.suggestedTags,
+          featuredImage: extracted.featuredImage,
+          contentImages: extracted.contentImages.length > 0 ? extracted.contentImages : undefined,
+          originalPublishedAt: extracted.originalPublishedAt ? new Date(extracted.originalPublishedAt) : undefined,
           status: "NEEDS_REVIEW",
         },
       });
