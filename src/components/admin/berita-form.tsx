@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Save, Send, Trash2, Loader2 } from "lucide-react";
+import { Save, Send, Trash2, Loader2, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageUploader } from "@/components/admin/image-uploader";
+import { useModal } from "@/components/shared/modal-provider";
 
 interface BeritaFormValues {
   id?: string;
@@ -31,6 +32,8 @@ export function BeritaForm({ initial }: { initial?: Partial<BeritaFormValues> })
   const router = useRouter();
   const [values, setValues] = React.useState<BeritaFormValues>({ ...EMPTY, ...initial });
   const [saving, setSaving] = React.useState(false);
+  const [generatingTags, setGeneratingTags] = React.useState(false);
+  const { confirm, alert } = useModal();
 
   function set<K extends keyof BeritaFormValues>(key: K, val: BeritaFormValues[K]) {
     setValues((v) => ({ ...v, [key]: val }));
@@ -58,9 +61,38 @@ export function BeritaForm({ initial }: { initial?: Partial<BeritaFormValues> })
 
   async function remove() {
     if (!values.id) return;
-    if (!confirm("Yakin hapus berita ini?")) return;
+    const ok = await confirm({
+      title: "Hapus Berita",
+      description: "Yakin hapus berita ini? Aksi ini tidak bisa dibatalkan.",
+      variant: "danger",
+      confirmText: "Hapus",
+    });
+    if (!ok) return;
     await fetch(`/api/berita/${values.id}`, { method: "DELETE" });
     router.push("/admin/berita");
+  }
+
+  async function generateTags() {
+    if (!values.title.trim() || !values.content.trim()) {
+      await alert("Isi judul dan konten berita dulu sebelum generate tag otomatis.");
+      return;
+    }
+    setGeneratingTags(true);
+    try {
+      const res = await fetch("/api/ai/generate-tags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: values.title, excerpt: values.excerpt, content: values.content }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        await alert(data.error || "Gagal generate tag otomatis.");
+        return;
+      }
+      set("tags", data.tags || "");
+    } finally {
+      setGeneratingTags(false);
+    }
   }
 
   return (
@@ -133,6 +165,10 @@ export function BeritaForm({ initial }: { initial?: Partial<BeritaFormValues> })
             <CardContent className="space-y-3">
               <Input placeholder="Kategori (mis. Pembangunan)" value={values.category} onChange={(e) => set("category", e.target.value)} />
               <Input placeholder="Tags (pisah koma)" value={values.tags} onChange={(e) => set("tags", e.target.value)} />
+              <Button type="button" variant="outline" size="sm" onClick={generateTags} disabled={generatingTags} className="w-full">
+                {generatingTags ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                Generate Tag Otomatis (AI)
+              </Button>
             </CardContent>
           </Card>
         </div>

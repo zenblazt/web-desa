@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { AuthProvider } from "@/components/shared/auth-provider";
+import { ModalProvider } from "@/components/shared/modal-provider";
 import { VisitTracker } from "@/components/shared/visit-tracker";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
@@ -50,10 +51,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className={`${inter.variable} font-sans`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
-            <VisitTracker />
-            <Navbar />
-            <main className="min-h-screen">{children}</main>
-            <Footer kontak={kontak} settings={settings} />
+            <ModalProvider>
+              <VisitTracker />
+              <Navbar />
+              <main className="min-h-screen">{children}</main>
+              <Footer kontak={kontak} settings={settings} />
+            </ModalProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

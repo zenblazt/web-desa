@@ -101,11 +101,10 @@ function KontakCard({ initial, onSaved }: { initial: any; onSaved: () => void })
         <Input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <Input placeholder="Jam operasional" value={form.operationalHours} onChange={(e) => setForm({ ...form, operationalHours: e.target.value })} />
         <Input placeholder="URL embed Google Maps" value={form.mapEmbedUrl} onChange={(e) => setForm({ ...form, mapEmbedUrl: e.target.value })} />
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Input placeholder="URL Facebook" value={form.facebook} onChange={(e) => setForm({ ...form, facebook: e.target.value })} />
-          <Input placeholder="URL Instagram" value={form.instagram} onChange={(e) => setForm({ ...form, instagram: e.target.value })} />
-          <Input placeholder="URL YouTube" value={form.youtube} onChange={(e) => setForm({ ...form, youtube: e.target.value })} />
-        </div>
+        <p className="pt-1 text-xs font-medium text-muted-foreground">Media Sosial</p>
+        <Input placeholder="Link Facebook" value={form.facebook} onChange={(e) => setForm({ ...form, facebook: e.target.value })} />
+        <Input placeholder="Link Instagram" value={form.instagram} onChange={(e) => setForm({ ...form, instagram: e.target.value })} />
+        <Input placeholder="Link YouTube" value={form.youtube} onChange={(e) => setForm({ ...form, youtube: e.target.value })} />
         <Button onClick={save} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Simpan
         </Button>

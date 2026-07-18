@@ -2,25 +2,33 @@
 
 import * as React from "react";
 import useSWR from "swr";
-import { Plus, Trash2, Pin, Loader2 } from "lucide-react";
+import { Plus, Trash2, Pin, Loader2, Pencil } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { AiTabWidget } from "@/components/admin/ai-tab-widget";
+import { EditDialog } from "@/components/admin/edit-dialog";
+import { useModal } from "@/components/shared/modal-provider";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const CATEGORIES = ["Umum", "Penting", "Darurat", "Kegiatan"];
 
 export default function AdminPengumumanPage() {
   const { data, mutate } = useSWR("/api/pengumuman", fetcher);
   const items = data?.items ?? [];
+  const { confirm } = useModal();
 
   const [title, setTitle] = React.useState("");
   const [content, setContent] = React.useState("");
   const [category, setCategory] = React.useState("Umum");
   const [isPinned, setIsPinned] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+
+  const [editItem, setEditItem] = React.useState<any>(null);
+  const [editForm, setEditForm] = React.useState({ title: "", content: "", category: "Umum", isPinned: false });
+  const [editSaving, setEditSaving] = React.useState(false);
 
   async function create(status: "DRAFT" | "PUBLISHED") {
     if (!title.trim() || !content.trim()) return;
@@ -45,9 +53,41 @@ export default function AdminPengumumanPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Hapus pengumuman ini?")) return;
+    const ok = await confirm({
+      title: "Hapus Pengumuman",
+      description: "Hapus pengumuman ini? Aksi ini tidak bisa dibatalkan.",
+      variant: "danger",
+      confirmText: "Hapus",
+    });
+    if (!ok) return;
     await fetch(`/api/pengumuman/${id}`, { method: "DELETE" });
     mutate();
+  }
+
+  function openEdit(item: any) {
+    setEditItem(item);
+    setEditForm({
+      title: item.title ?? "",
+      content: item.content ?? "",
+      category: item.category ?? "Umum",
+      isPinned: !!item.isPinned,
+    });
+  }
+
+  async function saveEdit() {
+    if (!editItem) return;
+    setEditSaving(true);
+    try {
+      await fetch(`/api/pengumuman/${editItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      setEditItem(null);
+      mutate();
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   return (
@@ -72,10 +112,7 @@ export default function AdminPengumumanPage() {
           />
           <div className="flex flex-wrap items-center gap-3">
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="h-10 rounded-xl border border-input bg-background px-3 text-sm">
-              <option>Umum</option>
-              <option>Penting</option>
-              <option>Darurat</option>
-              <option>Kegiatan</option>
+              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
             </select>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={isPinned} onChange={(e) => setIsPinned(e.target.checked)} /> Sematkan (pin)
@@ -109,6 +146,9 @@ export default function AdminPengumumanPage() {
               >
                 {item.status}
               </Badge>
+              <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" onClick={() => remove(item.id)} className="text-destructive">
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -116,6 +156,31 @@ export default function AdminPengumumanPage() {
           </div>
         ))}
       </Card>
+
+      <EditDialog
+        open={!!editItem}
+        onOpenChange={(open) => !open && setEditItem(null)}
+        title="Edit Pengumuman"
+        onSave={saveEdit}
+        saving={editSaving}
+      >
+        <Input placeholder="Judul" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+        <textarea
+          placeholder="Isi pengumuman"
+          value={editForm.content}
+          onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+          rows={4}
+          className="w-full rounded-xl border border-input bg-background p-3 text-sm shadow-sm"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <select value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="h-10 rounded-xl border border-input bg-background px-3 text-sm">
+            {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+          </select>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={editForm.isPinned} onChange={(e) => setEditForm({ ...editForm, isPinned: e.target.checked })} /> Sematkan (pin)
+          </label>
+        </div>
+      </EditDialog>
     </div>
   );
 }

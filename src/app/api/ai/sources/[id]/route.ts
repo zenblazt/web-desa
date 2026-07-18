@@ -17,8 +17,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { autoApprove, isActive, contentType, name, url, searchKeywords } = body as {
+  const { autoApprove, hideSource, isActive, contentType, name, url, searchKeywords } = body as {
     autoApprove?: boolean;
+    hideSource?: boolean;
     isActive?: boolean;
     contentType?: string;
     name?: string;
@@ -30,6 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     where: { id: params.id },
     data: {
       ...(autoApprove !== undefined ? { autoApprove } : {}),
+      ...(hideSource !== undefined ? { hideSource } : {}),
       ...(isActive !== undefined ? { isActive } : {}),
       ...(contentType !== undefined ? { contentType: contentType as any } : {}),
       ...(name !== undefined ? { name } : {}),

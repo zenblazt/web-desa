@@ -58,7 +58,15 @@ export default async function BeritaDetailPage({ params }: Props) {
           </div>
         )}
 
-        {item.sourceUrl && (
+        {item.tags && item.tags.trim().length > 0 && (
+          <div className="mt-8 flex flex-wrap gap-2">
+            {item.tags.split(",").map((tag) => tag.trim()).filter(Boolean).map((tag) => (
+              <Badge key={tag} variant="outline">#{tag}</Badge>
+            ))}
+          </div>
+        )}
+
+        {item.sourceUrl && !item.hideSource && (
           <p className="mt-6 text-xs text-muted-foreground">
             Sumber: <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">{item.sourceUrl}</a>
           </p>

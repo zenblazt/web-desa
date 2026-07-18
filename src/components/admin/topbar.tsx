@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Newspaper, Megaphone, Wrench, Users2, Store, Images, Sparkles, Settings,
+  KeyRound, ShieldCheck,
 } from "lucide-react";
 
 const NAV = [
@@ -22,11 +23,17 @@ const NAV = [
   { href: "/admin/umkm", label: "UMKM", icon: Store },
   { href: "/admin/galeri", label: "Galeri", icon: Images },
   { href: "/admin/pengaturan", label: "Pengaturan", icon: Settings },
+  { href: "/admin/pengaturan/akun", label: "Akun Saya", icon: KeyRound },
 ];
 
-export function AdminTopbar({ userName }: { userName?: string | null }) {
+const SUPERADMIN_NAV = [
+  { href: "/admin/management", label: "Manajemen Admin", icon: ShieldCheck },
+];
+
+export function AdminTopbar({ userName, role }: { userName?: string | null; role?: string }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+  const nav = role === "SUPERADMIN" ? [...NAV, ...SUPERADMIN_NAV] : NAV;
 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-card/90 px-4 backdrop-blur lg:px-6">
@@ -49,7 +56,7 @@ export function AdminTopbar({ userName }: { userName?: string | null }) {
 
       {open && (
         <nav className="absolute left-0 top-16 flex w-full flex-col gap-1 border-b border-border bg-card p-3 lg:hidden">
-          {NAV.map((item) => {
+          {nav.map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
             return (

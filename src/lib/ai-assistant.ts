@@ -260,6 +260,44 @@ Tugas kamu, kembalikan HANYA JSON valid (tanpa markdown, tanpa penjelasan tambah
   };
 }
 
+/** Generate tag otomatis buat 1 berita (dipakai tombol "Generate Tag" di form berita manual) — pakai kuota Gemini yang sama */
+export async function generateTagsForBerita(input: { title: string; excerpt?: string; content: string }): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY belum diset di environment variables");
+
+  const prompt = `Kamu asisten redaksi website resmi desa. Berdasarkan berita berikut, buatkan 3-6 tag/kata kunci relevan (bahasa Indonesia, singkat, tanpa tanda pagar #).
+
+JUDUL: ${input.title}
+RINGKASAN: ${input.excerpt || "-"}
+ISI: ${input.content.slice(0, 6000)}
+
+Kembalikan HANYA JSON valid tanpa markdown: {"tags": "tag1, tag2, tag3"}`;
+
+  const parsed = await withGeminiRetry(async () => {
+    const res = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.4, maxOutputTokens: 200, responseMimeType: "application/json" },
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      const err: any = new Error(`Gemini request gagal: ${res.status} ${errBody}`);
+      err.status = res.status;
+      throw err;
+    }
+
+    const data = await res.json();
+    const textBlock: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    return parseJsonObjectFromAi(textBlock);
+  });
+
+  return parsed.tags || "";
+}
+
 /**
  * Versi BATCH: ringkas beberapa konten sekaligus dalam 1 request Gemini.
  * Ini yang paling efektif menghemat kuota — 10 berita jadi ~2 request

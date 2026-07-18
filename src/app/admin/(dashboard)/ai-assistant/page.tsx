@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useModal } from "@/components/shared/modal-provider";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -46,6 +47,8 @@ function AiAssistantPage() {
   function setType(t: string) {
     router.push(`/admin/ai-assistant?type=${t}`);
   }
+
+  const { confirm, alert } = useModal();
 
   const { data: sourcesData, mutate: mutateSources } = useSWR("/api/ai/sources", fetcher);
   const { data: jobsData, mutate: mutateJobs } = useSWR(`/api/ai/scrape?contentType=${activeType}`, fetcher, { refreshInterval: 5000 });
@@ -92,24 +95,23 @@ function AiAssistantPage() {
   }, [activeType]);
 
   async function resetHistory() {
-    const step1 = confirm(
-      `Reset SEMUA histori scrape (AiJob) untuk tab ${activeTypeMeta.label}? Ini dipakai kalau dedupe "sudah pernah diproses" nyangkut padahal kontennya udah dihapus manual. Tindakan ini tidak bisa dibatalkan.`
-    );
-    if (!step1) return;
-    const typed = prompt('Ketik "RESET" (tanpa tanda kutip) untuk konfirmasi final:');
-    if (typed?.trim().toUpperCase() !== "RESET") {
-      alert("Konfirmasi tidak cocok, dibatalkan.");
-      return;
-    }
+    const ok = await confirm({
+      title: "Reset Histori Scrape",
+      description: `Reset SEMUA histori scrape (AiJob) untuk tab ${activeTypeMeta.label}? Ini dipakai kalau dedupe "sudah pernah diproses" nyangkut padahal kontennya udah dihapus manual. Tindakan ini tidak bisa dibatalkan.`,
+      variant: "danger",
+      confirmText: "Reset",
+      typeToConfirm: "RESET",
+    });
+    if (!ok) return;
     setResettingHistory(true);
     try {
       const res = await fetch(`/api/ai/jobs?contentType=${activeType}&confirm=RESET`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal reset");
-      alert(`${data.deleted} histori job untuk tab ${activeTypeMeta.label} sudah dihapus. Sekarang bisa di-scrape ulang.`);
+      await alert(`${data.deleted} histori job untuk tab ${activeTypeMeta.label} sudah dihapus. Sekarang bisa di-scrape ulang.`);
       mutateJobs();
     } catch (err: any) {
-      alert(`Gagal: ${err.message}`);
+      await alert(`Gagal: ${err.message}`);
     } finally {
       setResettingHistory(false);
     }
@@ -154,8 +156,18 @@ function AiAssistantPage() {
   }
 
   async function removeSource(id: string) {
-    if (!confirm("Hapus sumber ini?")) return;
+    const ok = await confirm({ title: "Hapus Sumber", description: "Hapus sumber ini?", variant: "danger", confirmText: "Hapus" });
+    if (!ok) return;
     await fetch(`/api/ai/sources/${id}`, { method: "DELETE" });
+    mutateSources();
+  }
+
+  async function toggleHideSource(source: any) {
+    await fetch(`/api/ai/sources/${source.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hideSource: !source.hideSource }),
+    });
     mutateSources();
   }
 
@@ -214,7 +226,8 @@ function AiAssistantPage() {
 
   async function approveAll() {
     if (needsReviewJobs.length === 0) return;
-    if (!confirm(`Setujui & publish ${needsReviewJobs.length} item sekaligus tanpa dicek satu-satu?`)) return;
+    const ok = await confirm(`Setujui & publish ${needsReviewJobs.length} item sekaligus tanpa dicek satu-satu?`);
+    if (!ok) return;
     setApprovingAll(true);
     setApproveAllMsg(null);
     const res = await fetch("/api/ai/approve-all", {
@@ -352,6 +365,10 @@ function AiAssistantPage() {
                     Rapikan pakai AI (cuma berlaku kalau sumbernya WordPress)
                   </label>
                 )}
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={!!s.hideSource} onChange={() => toggleHideSource(s)} />
+                  Jangan tampilkan &quot;Sumber: ...&quot; di halaman publik
+                </label>
               </div>
 
               <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
@@ -581,15 +598,19 @@ function AiJobCard({ job, onDone }: { job: any; onDone: () => void }) {
           )}
 
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Judul" />
-          <textarea
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            rows={4}
-            className="w-full rounded-xl border border-input bg-background p-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="Ringkasan / isi"
-          />
-          <Input value={metaDescription} onChange={(e) => setMetaDescription(e.target.value)} placeholder="Meta description" />
-          <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags (pisah koma)" />
+          {job.contentType !== "GALERI" && (
+            <>
+              <textarea
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                rows={4}
+                className="w-full rounded-xl border border-input bg-background p-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                placeholder="Ringkasan / isi"
+              />
+              <Input value={metaDescription} onChange={(e) => setMetaDescription(e.target.value)} placeholder="Meta description" />
+              <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags (pisah koma)" />
+            </>
+          )}
 
           <div className="flex gap-2 pt-1">
             <Button size="sm" onClick={() => approve(true)} disabled={busy}>

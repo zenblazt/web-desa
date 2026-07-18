@@ -7,6 +7,7 @@ import { Sparkles, Gauge, CheckCheck, Loader2, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useModal } from "@/components/shared/modal-provider";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -28,12 +29,14 @@ export function AiTabWidget({ contentType }: { contentType: keyof typeof LABELS 
   const { data: quotaData } = useSWR("/api/ai/quota", fetcher, { refreshInterval: 15000 });
   const [approving, setApproving] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
+  const { confirm } = useModal();
 
   const needsReview = (jobsData?.jobs ?? []).filter((j: any) => j.status === "NEEDS_REVIEW");
 
   async function approveAll() {
     if (needsReview.length === 0) return;
-    if (!confirm(`Setujui & publish ${needsReview.length} draft ${LABELS[contentType]} sekaligus?`)) return;
+    const ok = await confirm(`Setujui & publish ${needsReview.length} draft ${LABELS[contentType]} sekaligus?`);
+    if (!ok) return;
     setApproving(true);
     setMsg(null);
     const res = await fetch("/api/ai/approve-all", {

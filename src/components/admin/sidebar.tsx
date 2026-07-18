@@ -15,6 +15,8 @@ import {
   Settings,
   LogOut,
   Sprout,
+  KeyRound,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,10 +30,16 @@ const NAV = [
   { href: "/admin/umkm", label: "UMKM", icon: Store },
   { href: "/admin/galeri", label: "Galeri", icon: Images },
   { href: "/admin/pengaturan", label: "Pengaturan", icon: Settings },
+  { href: "/admin/pengaturan/akun", label: "Akun Saya", icon: KeyRound },
 ];
 
-export function AdminSidebar() {
+const SUPERADMIN_NAV = [
+  { href: "/admin/management", label: "Manajemen Admin", icon: ShieldCheck },
+];
+
+export function AdminSidebar({ role }: { role?: string }) {
   const pathname = usePathname();
+  const nav = role === "SUPERADMIN" ? [...NAV, ...SUPERADMIN_NAV] : NAV;
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card lg:flex">
@@ -43,7 +51,7 @@ export function AdminSidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
           return (

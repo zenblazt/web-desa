@@ -119,6 +119,7 @@ model Berita {
   viewCount   Int           @default(0)
 
   sourceUrl   String?       // kalau hasil AI scraping
+  hideSource  Boolean       @default(false) // true = sourceUrl tetap disimpan (buat dedupe) tapi TIDAK ditampilkan di halaman publik
   isAiGenerated Boolean     @default(false)
 
   authorId    String
@@ -311,6 +312,7 @@ model AiSource {
   contentType AiContentType @default(BERITA) // tab tujuan: Berita/UMKM/Galeri/Perangkat Desa/Pengumuman
   searchKeywords String?    // kata kunci fokus pencarian (dipakai di "Cari Topik Lain"), mis. "UMKM produk lokal" biar AI fokus cari berita UMKM, bukan berita umum
   autoApprove Boolean       @default(false)  // kalau true: hasil scrape langsung publish otomatis, admin gak perlu review satu-satu
+  hideSource  Boolean       @default(false)  // kalau true: hasil scrape dari sumber ini gak nampilin "Sumber: ..." di halaman publik
   isActive    Boolean       @default(true)
   lastCheckedAt DateTime?
   createdAt   DateTime      @default(now())
@@ -324,6 +326,7 @@ model AiJob {
   id              String        @id @default(cuid())
   sourceType      SourceType    @default(MANUAL_LINK)
   sourceUrl       String?       @db.Text
+  hideSource      Boolean       @default(false) // disalin dari AiSource.hideSource saat job dibuat
   aiSourceId      String?
   aiSource        AiSource?     @relation(fields: [aiSourceId], references: [id])
 

@@ -3,23 +3,29 @@
 import * as React from "react";
 import useSWR from "swr";
 import Image from "next/image";
-import { Trash2, Plus, User2, Pencil, Loader2 } from "lucide-react";
+import { Trash2, Plus, User2, Pencil } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ImageUploader } from "@/components/admin/image-uploader";
 import { AiTabWidget } from "@/components/admin/ai-tab-widget";
-import { Dialog, useModal } from "@/components/ui/modal";
+import { EditDialog } from "@/components/admin/edit-dialog";
+import { useModal } from "@/components/shared/modal-provider";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+const emptyForm = { name: "", position: "", photo: "", phone: "", email: "", bio: "", level: "1" };
 
 export default function AdminPerangkatPage() {
   const { data, mutate } = useSWR("/api/perangkat", fetcher);
   const items = data?.items ?? [];
-  const modal = useModal();
+  const { confirm, alert } = useModal();
 
-  const [form, setForm] = React.useState({ name: "", position: "", photo: "", phone: "", email: "", bio: "", level: "1" });
+  const [form, setForm] = React.useState(emptyForm);
+
   const [editItem, setEditItem] = React.useState<any>(null);
+  const [editForm, setEditForm] = React.useState(emptyForm);
+  const [saving, setSaving] = React.useState(false);
 
   async function add() {
     if (!form.name.trim() || !form.position.trim()) return;
@@ -28,7 +34,7 @@ export default function AdminPerangkatPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    setForm({ name: "", position: "", photo: "", phone: "", email: "", bio: "", level: "1" });
+    setForm(emptyForm);
     mutate();
   }
 
@@ -42,15 +48,48 @@ export default function AdminPerangkatPage() {
   }
 
   async function remove(id: string) {
-    const ok = await modal.confirm({
-      title: "Hapus perangkat?",
-      description: "Data perangkat ini akan dihapus permanen.",
-      confirmLabel: "Hapus",
-      danger: true,
+    const ok = await confirm({
+      title: "Hapus Perangkat",
+      description: "Hapus data perangkat ini? Aksi ini tidak bisa dibatalkan.",
+      variant: "danger",
+      confirmText: "Hapus",
     });
     if (!ok) return;
     await fetch(`/api/perangkat/${id}`, { method: "DELETE" });
     mutate();
+  }
+
+  function openEdit(p: any) {
+    setEditItem(p);
+    setEditForm({
+      name: p.name ?? "",
+      position: p.position ?? "",
+      photo: p.photo ?? "",
+      phone: p.phone ?? "",
+      email: p.email ?? "",
+      bio: p.bio ?? "",
+      level: String(p.level ?? 1),
+    });
+  }
+
+  async function saveEdit() {
+    if (!editItem) return;
+    if (!editForm.name.trim() || !editForm.position.trim()) {
+      await alert("Nama dan jabatan wajib diisi.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await fetch(`/api/perangkat/${editItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...editForm, level: Number(editForm.level) || 1 }),
+      });
+      setEditItem(null);
+      mutate();
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -124,7 +163,7 @@ export default function AdminPerangkatPage() {
                   className="h-8 w-16"
                 />
               </label>
-              <Button variant="ghost" size="icon" onClick={() => setEditItem(p)}>
+              <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                 <Pencil className="h-4 w-4" />
               </Button>
               <Button variant="ghost" size="icon" onClick={() => remove(p.id)} className="text-destructive">
@@ -135,68 +174,40 @@ export default function AdminPerangkatPage() {
         ))}
       </Card>
 
-      <EditPerangkatModal item={editItem} onClose={() => setEditItem(null)} onSaved={mutate} />
-      {modal.element}
-    </div>
-  );
-}
-
-function EditPerangkatModal({ item, onClose, onSaved }: { item: any; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = React.useState({ name: "", position: "", photo: "", phone: "", email: "", bio: "" });
-  const [saving, setSaving] = React.useState(false);
-
-  React.useEffect(() => {
-    if (item) {
-      setForm({
-        name: item.name ?? "",
-        position: item.position ?? "",
-        photo: item.photo ?? "",
-        phone: item.phone ?? "",
-        email: item.email ?? "",
-        bio: item.bio ?? "",
-      });
-    }
-  }, [item]);
-
-  async function save() {
-    if (!item) return;
-    setSaving(true);
-    await fetch(`/api/perangkat/${item.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setSaving(false);
-    onSaved();
-    onClose();
-  }
-
-  return (
-    <Dialog open={!!item} onClose={onClose} title="Edit Perangkat" maxWidth="max-w-lg">
-      <div className="space-y-3">
-        <ImageUploader value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} />
+      <EditDialog
+        open={!!editItem}
+        onOpenChange={(open) => !open && setEditItem(null)}
+        title="Edit Perangkat"
+        onSave={saveEdit}
+        saving={saving}
+      >
+        <ImageUploader value={editForm.photo} onChange={(url) => setEditForm({ ...editForm, photo: url })} />
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input placeholder="Nama lengkap" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <Input placeholder="Jabatan" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} />
+          <Input placeholder="Nama lengkap" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+          <Input placeholder="Jabatan" value={editForm.position} onChange={(e) => setEditForm({ ...editForm, position: e.target.value })} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input placeholder="No. telepon" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <Input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <Input placeholder="No. telepon" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+          <Input placeholder="Email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
         </div>
         <textarea
           placeholder="Deskripsi singkat tugas jabatan"
-          value={form.bio}
-          onChange={(e) => setForm({ ...form, bio: e.target.value })}
+          value={editForm.bio}
+          onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
           rows={3}
           className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="outline" onClick={onClose}>Batal</Button>
-          <Button onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Simpan
-          </Button>
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">Jenjang</label>
+          <Input
+            type="number"
+            min={1}
+            value={editForm.level}
+            onChange={(e) => setEditForm({ ...editForm, level: e.target.value })}
+            className="max-w-[140px]"
+          />
         </div>
-      </div>
-    </Dialog>
+      </EditDialog>
+    </div>
   );
 }

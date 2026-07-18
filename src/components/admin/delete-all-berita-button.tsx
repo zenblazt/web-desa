@@ -4,20 +4,23 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useModal } from "@/components/shared/modal-provider";
 
 export function DeleteAllBeritaButton({ count }: { count: number }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+  const { confirm, alert } = useModal();
 
   async function handleDeleteAll() {
     if (count === 0) return;
-    const step1 = confirm(`Hapus SEMUA ${count} berita? Tindakan ini tidak bisa dibatalkan.`);
-    if (!step1) return;
-    const typed = prompt('Ketik "HAPUS SEMUA" (tanpa tanda kutip) untuk konfirmasi final:');
-    if (typed?.trim().toUpperCase() !== "HAPUS SEMUA") {
-      alert("Konfirmasi tidak cocok, dibatalkan.");
-      return;
-    }
+    const ok = await confirm({
+      title: "Hapus Semua Berita",
+      description: `Hapus SEMUA ${count} berita? Tindakan ini tidak bisa dibatalkan.`,
+      variant: "danger",
+      confirmText: "Hapus Semua",
+      typeToConfirm: "HAPUS SEMUA",
+    });
+    if (!ok) return;
 
     setBusy(true);
     try {
@@ -26,7 +29,7 @@ export function DeleteAllBeritaButton({ count }: { count: number }) {
       if (!res.ok) throw new Error(data.error || "Gagal menghapus");
       router.refresh();
     } catch (err: any) {
-      alert(`Gagal: ${err.message}`);
+      await alert(`Gagal: ${err.message}`);
     } finally {
       setBusy(false);
     }

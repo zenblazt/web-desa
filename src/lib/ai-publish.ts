@@ -41,6 +41,7 @@ interface PublishArgs {
     contentImages: unknown;
     originalPublishedAt: Date | null;
     sourceUrl: string | null;
+    hideSource?: boolean;
   };
   authorId: string;
   publish: boolean; // true = langsung tayang, false = simpan draft (cuma berlaku buat Berita/Pengumuman)
@@ -188,6 +189,7 @@ export async function publishAiJob({ job, authorId, publish, editedFields }: Pub
           status: publish ? "PUBLISHED" : "DRAFT",
           publishedAt: publish ? publishedAt : null,
           sourceUrl: job.sourceUrl,
+          hideSource: !!job.hideSource,
           isAiGenerated: true,
           authorId,
           seoMetaId: seoMeta.id,

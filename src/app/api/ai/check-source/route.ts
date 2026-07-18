@@ -90,7 +90,9 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const drafts = useAiRewrite
+      // Galeri cuma butuh judul + foto — gak perlu ringkasan/meta/tags,
+      // jadi jangan buang kuota AI buat itu meski useAiRewrite dicentang.
+      const drafts = useAiRewrite && source.contentType !== "GALERI"
         ? await summarizeAndGenerateSeoBatch(
             newPosts.map((p) => ({ title: p.title, text: p.content, url: p.url })),
             5
@@ -109,6 +111,7 @@ export async function POST(req: NextRequest) {
             data: {
               sourceType: "WP_JSON",
               sourceUrl: post.url,
+              hideSource: source.hideSource,
               aiSourceId: source.id,
               contentType: source.contentType,
               status: "NEEDS_REVIEW",
@@ -186,8 +189,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Non-WordPress WAJIB diringkas AI (bukan opsional lagi) supaya hasilnya
-    // rapi & konsisten — tetap dibatch biar hemat kuota.
-    const drafts = await summarizeAndGenerateSeoBatch(extracted, 5);
+    // rapi & konsisten — tetap dibatch biar hemat kuota. KECUALI Galeri:
+    // cuma butuh judul + foto, jadi skip AI sama sekali biar kuota gak kebuang.
+    const drafts = source.contentType === "GALERI"
+      ? extracted.map((item) => ({
+          summary: "",
+          suggestedTitle: item.title,
+          suggestedSlug: generateSlug(item.title),
+          suggestedMetaDescription: "",
+          suggestedTags: "",
+        }))
+      : await summarizeAndGenerateSeoBatch(extracted, 5);
 
     const createdJobs = await prisma.$transaction(
       extracted.map((item, i) =>
@@ -195,6 +207,7 @@ export async function POST(req: NextRequest) {
           data: {
             sourceType: "MANUAL_LINK",
             sourceUrl: item.url,
+            hideSource: source.hideSource,
             aiSourceId: source.id,
             contentType: source.contentType,
             status: "NEEDS_REVIEW",

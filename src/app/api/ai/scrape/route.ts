@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { extractFromUrl, summarizeAndGenerateSeo } from "@/lib/ai-assistant";
+import { generateSlug } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
 
     let targetUrl = url;
     let resolvedContentType = contentType ?? "BERITA";
+    let sourceHideSource = false;
 
     if (type === "AUTO_SEARCH") {
       if (!aiSourceId) {
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
       }
       targetUrl = source.url;
       resolvedContentType = contentType ?? source.contentType;
+      sourceHideSource = source.hideSource;
       await prisma.aiSource.update({
         where: { id: source.id },
         data: { lastCheckedAt: new Date() },
@@ -88,6 +91,7 @@ export async function POST(req: NextRequest) {
       data: {
         sourceType: type,
         sourceUrl: targetUrl,
+        hideSource: sourceHideSource,
         aiSourceId: type === "AUTO_SEARCH" ? aiSourceId : undefined,
         contentType: resolvedContentType as any,
         status: "RUNNING",
@@ -96,7 +100,15 @@ export async function POST(req: NextRequest) {
 
     try {
       const extracted = await extractFromUrl(targetUrl);
-      const draft = await summarizeAndGenerateSeo(extracted);
+      const draft = resolvedContentType === "GALERI"
+        ? {
+            summary: "",
+            suggestedTitle: extracted.title,
+            suggestedSlug: generateSlug(extracted.title),
+            suggestedMetaDescription: "",
+            suggestedTags: "",
+          }
+        : await summarizeAndGenerateSeo(extracted);
 
       const updated = await prisma.aiJob.update({
         where: { id: job.id },

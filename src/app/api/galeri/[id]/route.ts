@@ -7,6 +7,20 @@ export const dynamic = "force-dynamic";
 
 interface Params { params: { id: string } }
 
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await req.json();
+  const { title, image, category } = body;
+  const data: Record<string, unknown> = {};
+  if (title !== undefined) data.title = title;
+  if (image !== undefined) data.image = image;
+  if (category !== undefined) data.category = category;
+
+  const item = await prisma.galeri.update({ where: { id: params.id }, data });
+  return NextResponse.json({ item });
+}
+
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
