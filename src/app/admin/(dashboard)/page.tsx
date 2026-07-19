@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { getVillageInfo } from "@/lib/village";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
-  const [beritaCount, pengumumanCount, umkmCount, pendingAiJobs, totalViews, visitLast7d, recentBerita] =
+  const [beritaCount, pengumumanCount, umkmCount, pendingAiJobs, totalViews, visitLast7d, recentBerita, village] =
     await Promise.all([
       prisma.berita.count(),
       prisma.pengumuman.count({ where: { status: "PUBLISHED" } }),
@@ -17,6 +18,7 @@ export default async function AdminDashboardPage() {
       prisma.berita.aggregate({ _sum: { viewCount: true } }),
       prisma.pageVisit.count({ where: { createdAt: { gte: new Date(Date.now() - 7 * 86400000) } } }),
       prisma.berita.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
+      getVillageInfo(),
     ]);
 
   const cards = [
@@ -32,7 +34,7 @@ export default async function AdminDashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Ringkasan aktivitas website Desa Tanjungsari.</p>
+        <p className="text-sm text-muted-foreground">Ringkasan aktivitas website Desa {village.villageName}.</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

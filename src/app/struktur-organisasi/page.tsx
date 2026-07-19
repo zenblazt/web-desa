@@ -3,19 +3,26 @@ import Image from "next/image";
 import { User2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "Struktur Organisasi",
-  description: "Bagan struktur organisasi Pemerintah Desa Tanjungsari, Kecamatan Jenangan.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "Struktur Organisasi",
+    description: `Bagan struktur organisasi Pemerintah Desa ${village.villageName}, Kecamatan ${village.districtName}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function StrukturOrganisasiPage() {
-  const perangkat = await prisma.perangkatDesa.findMany({
-    where: { isActive: true },
-    orderBy: [{ level: "asc" }, { order: "asc" }],
-  });
+  const [perangkat, village] = await Promise.all([
+    prisma.perangkatDesa.findMany({
+      where: { isActive: true },
+      orderBy: [{ level: "asc" }, { order: "asc" }],
+    }),
+    getVillageInfo(),
+  ]);
 
   // Kelompokkan per jenjang (level) — level 1 = paling atas (mis. Kepala Desa).
   const levels = new Map<number, typeof perangkat>();
@@ -31,7 +38,7 @@ export default async function StrukturOrganisasiPage() {
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Struktur Organisasi</h1>
         <p className="mt-3 text-muted-foreground">
-          Bagan susunan organisasi Pemerintah Desa Tanjungsari, Kecamatan Jenangan, dari jenjang tertinggi hingga
+          Bagan susunan organisasi Pemerintah Desa {village.villageName}, Kecamatan {village.districtName}, dari jenjang tertinggi hingga
           perangkat di tingkat dusun.
         </p>
       </header>

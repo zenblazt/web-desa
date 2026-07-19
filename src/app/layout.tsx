@@ -9,33 +9,39 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { getSiteUrl } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
+import { getVillageInfo } from "@/lib/village";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 const siteUrl = getSiteUrl();
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
-  title: {
-    default: "Desa Tanjungsari, Kecamatan Jenangan — Situs Resmi",
-    template: "%s | Desa Tanjungsari",
-  },
-  description:
-    "Situs resmi Desa Tanjungsari, Kecamatan Jenangan. Informasi layanan warga, berita desa, UMKM, potensi desa, dan pengumuman terbaru.",
-  keywords: ["Desa Tanjungsari", "Jenangan", "Ponorogo", "layanan desa", "berita desa"],
-  openGraph: {
-    type: "website",
-    locale: "id_ID",
-    siteName: "Desa Tanjungsari",
-    title: "Desa Tanjungsari, Kecamatan Jenangan — Situs Resmi",
-    description: "Informasi layanan warga, berita, dan potensi Desa Tanjungsari.",
-  },
-  twitter: { card: "summary_large_image" },
-  alternates: {
-    canonical: "/",
-    types: { "application/rss+xml": "/rss.xml" },
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  const siteName = `Desa ${village.villageName}`;
+  const titleSuffix = `${siteName}, Kecamatan ${village.districtName} — Situs Resmi`;
+
+  return {
+    metadataBase: new URL(siteUrl),
+    title: {
+      default: titleSuffix,
+      template: `%s | ${siteName}`,
+    },
+    description: `Situs resmi ${siteName}, Kecamatan ${village.districtName}. Informasi layanan warga, berita desa, UMKM, potensi desa, dan pengumuman terbaru.`,
+    keywords: [siteName, village.districtName, village.regencyName, "layanan desa", "berita desa"],
+    openGraph: {
+      type: "website",
+      locale: "id_ID",
+      siteName,
+      title: titleSuffix,
+      description: `Informasi layanan warga, berita, dan potensi ${siteName}.`,
+    },
+    twitter: { card: "summary_large_image" },
+    alternates: {
+      canonical: "/",
+      types: { "application/rss+xml": "/rss.xml" },
+    },
+  };
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Footer & social media links pakai data asli dari DB (Kontak + Settings),
@@ -53,7 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <AuthProvider>
             <ModalProvider>
               <VisitTracker />
-              <Navbar />
+              <Navbar siteName={settings?.siteName ?? undefined} />
               <main className="min-h-screen">{children}</main>
               <Footer kontak={kontak} settings={settings} />
             </ModalProvider>

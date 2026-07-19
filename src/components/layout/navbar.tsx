@@ -22,7 +22,7 @@ const NAV_LINKS = [
   { href: "/kontak", label: "Kontak" },
 ];
 
-export function Navbar() {
+export function Navbar({ siteName }: { siteName?: string }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
@@ -35,7 +35,7 @@ export function Navbar() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Sprout className="h-5 w-5" />
           </span>
-          <span className="hidden text-base sm:inline">Desa Tanjungsari</span>
+          <span className="hidden text-base sm:inline">{siteName || "Desa Tanjungsari"}</span>
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">

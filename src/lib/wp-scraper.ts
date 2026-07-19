@@ -83,7 +83,7 @@ export async function fetchWpPosts(
     if (opts.categoryId) params.set("categories", String(opts.categoryId));
 
     const res = await fetch(`${base}/wp-json/wp/v2/posts?${params.toString()}`, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; DesaTanjungsariBot/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; SiDesaBot/1.0)" },
     });
 
     if (res.status === 400 || res.status === 404) break; // sudah lewat halaman terakhir

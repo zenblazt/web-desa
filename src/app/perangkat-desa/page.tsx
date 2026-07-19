@@ -3,26 +3,33 @@ import Image from "next/image";
 import { User2, Phone } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "Perangkat Desa",
-  description: "Daftar struktur dan perangkat Desa Tanjungsari, Kecamatan Jenangan.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "Perangkat Desa",
+    description: `Daftar struktur dan perangkat Desa ${village.villageName}, Kecamatan ${village.districtName}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function PerangkatDesaPage() {
-  const perangkat = await prisma.perangkatDesa.findMany({
-    where: { isActive: true },
-    orderBy: { order: "asc" },
-  });
+  const [perangkat, village] = await Promise.all([
+    prisma.perangkatDesa.findMany({
+      where: { isActive: true },
+      orderBy: { order: "asc" },
+    }),
+    getVillageInfo(),
+  ]);
 
   return (
     <div className="container-app section-y">
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Perangkat Desa</h1>
         <p className="mt-3 text-muted-foreground">
-          Struktur organisasi dan aparatur Pemerintah Desa Tanjungsari.
+          Struktur organisasi dan aparatur Pemerintah Desa {village.villageName}.
         </p>
       </header>
 

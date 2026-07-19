@@ -124,7 +124,7 @@ function resolveUrl(src: string, base: string): string | null {
 /** Ambil & bersihkan konten utama dari sebuah URL berita/pengumuman resmi (termasuk gambar) */
 export async function extractFromUrl(url: string): Promise<ExtractedContent> {
   const res = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; DesaTanjungsariBot/1.0)" },
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; SiDesaBot/1.0)" },
   });
   if (!res.ok) throw new Error(`Gagal mengambil konten dari ${url} (${res.status})`);
 

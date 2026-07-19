@@ -1,14 +1,17 @@
 import RSS from "rss";
 import { prisma } from "@/lib/prisma";
+import { getVillageInfo } from "@/lib/village";
 
 export const dynamic = "force-dynamic";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://desatanjungsari.id";
 
 export async function GET() {
+  const village = await getVillageInfo();
+
   const feed = new RSS({
-    title: "Berita Desa Tanjungsari",
-    description: "Berita dan kabar terbaru Desa Tanjungsari, Kecamatan Jenangan",
+    title: `Berita Desa ${village.villageName}`,
+    description: `Berita dan kabar terbaru Desa ${village.villageName}, Kecamatan ${village.districtName}`,
     site_url: siteUrl,
     feed_url: `${siteUrl}/rss.xml`,
     language: "id",

@@ -6,25 +6,32 @@ import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, truncate } from "@/lib/utils";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "Berita Desa",
-  description: "Kumpulan berita dan kabar terbaru seputar Desa Tanjungsari, Kecamatan Jenangan.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "Berita Desa",
+    description: `Kumpulan berita dan kabar terbaru seputar Desa ${village.villageName}, Kecamatan ${village.districtName}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function BeritaPage() {
-  const news = await prisma.berita.findMany({
-    where: { status: "PUBLISHED" },
-    orderBy: { publishedAt: "desc" },
-  });
+  const [news, village] = await Promise.all([
+    prisma.berita.findMany({
+      where: { status: "PUBLISHED" },
+      orderBy: { publishedAt: "desc" },
+    }),
+    getVillageInfo(),
+  ]);
 
   return (
     <div className="container-app section-y">
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Berita Desa</h1>
-        <p className="mt-3 text-muted-foreground">Kabar dan informasi terbaru seputar Desa Tanjungsari.</p>
+        <p className="mt-3 text-muted-foreground">Kabar dan informasi terbaru seputar Desa {village.villageName}.</p>
       </header>
 
       {news.length === 0 ? (

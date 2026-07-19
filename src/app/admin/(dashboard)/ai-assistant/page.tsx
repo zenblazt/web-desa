@@ -420,7 +420,7 @@ function AiAssistantPage() {
           <CardContent className="space-y-3 pt-0">
             <div className="flex gap-2">
               <Input
-                placeholder="Topik (kosongkan = 'Desa Tanjungsari Kecamatan Jenangan')"
+                placeholder="Topik (kosongkan = pakai nama desa & kecamatan otomatis)"
                 value={searchTopic}
                 onChange={(e) => setSearchTopic(e.target.value)}
               />

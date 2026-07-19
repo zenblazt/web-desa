@@ -3,23 +3,27 @@ import { MapPin, Phone, Mail, Clock, MessageCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "Kontak",
-  description: "Hubungi Kantor Desa Tanjungsari, Kecamatan Jenangan.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "Kontak",
+    description: `Hubungi Kantor Desa ${village.villageName}, Kecamatan ${village.districtName}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function KontakPage() {
-  const kontak = await prisma.kontak.findFirst();
+  const [kontak, village] = await Promise.all([prisma.kontak.findFirst(), getVillageInfo()]);
 
   return (
     <div className="container-app section-y">
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Kontak Kami</h1>
         <p className="mt-3 text-muted-foreground">
-          Hubungi Kantor Desa Tanjungsari untuk pertanyaan atau kebutuhan layanan.
+          Hubungi Kantor Desa {village.villageName} untuk pertanyaan atau kebutuhan layanan.
         </p>
       </header>
 
@@ -31,7 +35,7 @@ export default async function KontakPage() {
           <CardContent className="space-y-4 text-sm">
             <p className="flex items-start gap-3 text-muted-foreground">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              {kontak?.address ?? "Kantor Desa Tanjungsari, Kec. Jenangan, Kab. Ponorogo"}
+              {kontak?.address ?? `Kantor Desa ${village.villageName}, Kec. ${village.districtName}, Kab. ${village.regencyName}`}
             </p>
             {kontak?.phone && (
               <p className="flex items-center gap-3 text-muted-foreground">

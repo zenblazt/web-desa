@@ -5,25 +5,32 @@ import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "Pengumuman",
-  description: "Pengumuman resmi terbaru dari Pemerintah Desa Tanjungsari.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "Pengumuman",
+    description: `Pengumuman resmi terbaru dari Pemerintah Desa ${village.villageName}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function PengumumanPage() {
-  const items = await prisma.pengumuman.findMany({
-    where: { status: "PUBLISHED" },
-    orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
-  });
+  const [items, village] = await Promise.all([
+    prisma.pengumuman.findMany({
+      where: { status: "PUBLISHED" },
+      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+    }),
+    getVillageInfo(),
+  ]);
 
   return (
     <div className="container-app section-y">
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Pengumuman</h1>
-        <p className="mt-3 text-muted-foreground">Informasi resmi dan penting untuk warga Desa Tanjungsari.</p>
+        <p className="mt-3 text-muted-foreground">Informasi resmi dan penting untuk warga Desa {village.villageName}.</p>
       </header>
 
       {items.length === 0 ? (

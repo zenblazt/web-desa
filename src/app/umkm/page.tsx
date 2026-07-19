@@ -5,21 +5,28 @@ import { Store, MessageCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "UMKM Desa",
-  description: "Direktori UMKM (Usaha Mikro Kecil Menengah) warga Desa Tanjungsari.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "UMKM Desa",
+    description: `Direktori UMKM (Usaha Mikro Kecil Menengah) warga Desa ${village.villageName}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function UmkmPage() {
-  const items = await prisma.umkm.findMany({ where: { isActive: true }, orderBy: { isFeatured: "desc" } });
+  const [items, village] = await Promise.all([
+    prisma.umkm.findMany({ where: { isActive: true }, orderBy: { isFeatured: "desc" } }),
+    getVillageInfo(),
+  ]);
 
   return (
     <div className="container-app section-y">
       <header className="mx-auto max-w-2xl text-center">
-        <h1 className="text-3xl font-bold tracking-tight md:text-4xl">UMKM Desa Tanjungsari</h1>
+        <h1 className="text-3xl font-bold tracking-tight md:text-4xl">UMKM Desa {village.villageName}</h1>
         <p className="mt-3 text-muted-foreground">Dukung produk dan jasa lokal dari warga desa.</p>
       </header>
 

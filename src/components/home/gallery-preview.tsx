@@ -3,9 +3,13 @@ import Image from "next/image";
 import { Images } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { SectionHeading } from "@/components/home/announcements";
+import { getVillageInfo } from "@/lib/village";
 
 export async function GalleryPreview() {
-  const photos = await prisma.galeri.findMany({ orderBy: { order: "asc" }, take: 6 });
+  const [photos, village] = await Promise.all([
+    prisma.galeri.findMany({ orderBy: { order: "asc" }, take: 6 }),
+    getVillageInfo(),
+  ]);
   if (photos.length === 0) return null;
 
   return (
@@ -14,7 +18,7 @@ export async function GalleryPreview() {
         <SectionHeading
           icon={<Images className="h-5 w-5" />}
           title="Galeri Desa"
-          subtitle="Dokumentasi kegiatan dan keindahan Desa Tanjungsari"
+          subtitle={`Dokumentasi kegiatan dan keindahan Desa ${village.villageName}`}
           href="/galeri"
         />
 

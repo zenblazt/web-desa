@@ -38,7 +38,7 @@ export default function AdminLoginPage() {
             <Sprout className="h-5 w-5" />
           </span>
           <CardTitle className="mt-2">Login Admin</CardTitle>
-          <p className="text-sm text-muted-foreground">Sistem Informasi Desa Tanjungsari</p>
+          <p className="text-sm text-muted-foreground">Sistem Informasi Desa</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

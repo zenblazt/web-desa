@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
 
     // ---------- Jalur non-WordPress (generic HTML) ----------
     const res = await fetch(source.url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; DesaTanjungsariBot/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; SiDesaBot/1.0)" },
     });
     if (!res.ok) throw new Error(`Gagal mengambil ${source.url} (${res.status})`);
     const html = await res.text();

@@ -3,29 +3,33 @@ import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Compass, Target, Ruler, Users2 } from "lucide-react";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "Profil Desa",
-  description: "Sejarah, visi misi, dan data wilayah Desa Tanjungsari, Kecamatan Jenangan.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "Profil Desa",
+    description: `Sejarah, visi misi, dan data wilayah Desa ${village.villageName}, Kecamatan ${village.districtName}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function ProfilDesaPage() {
-  const profil = await prisma.profilDesa.findFirst();
+  const [profil, village] = await Promise.all([prisma.profilDesa.findFirst(), getVillageInfo()]);
 
   return (
     <div className="container-app section-y">
       <header className="mx-auto max-w-2xl text-center">
-        <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Profil Desa Tanjungsari</h1>
+        <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Profil Desa {village.villageName}</h1>
         <p className="mt-3 text-muted-foreground">
-          Mengenal lebih dekat sejarah, visi, dan data wilayah Desa Tanjungsari, Kecamatan Jenangan.
+          Mengenal lebih dekat sejarah, visi, dan data wilayah Desa {village.villageName}, Kecamatan {village.districtName}.
         </p>
       </header>
 
       {profil?.lambangImage && (
         <div className="relative mx-auto mt-8 h-32 w-32">
-          <Image src={profil.lambangImage} alt="Lambang Desa Tanjungsari" fill className="object-contain" />
+          <Image src={profil.lambangImage} alt={`Lambang Desa ${village.villageName}`} fill className="object-contain" />
         </div>
       )}
 
@@ -97,7 +101,7 @@ export default async function ProfilDesaPage() {
         {profil?.petaImage && (
           <Card className="overflow-hidden p-0">
             <div className="relative aspect-video w-full">
-              <Image src={profil.petaImage} alt="Peta Desa Tanjungsari" fill className="object-cover" />
+              <Image src={profil.petaImage} alt={`Peta Desa ${village.villageName}`} fill className="object-cover" />
             </div>
           </Card>
         )}

@@ -4,23 +4,30 @@ import { Leaf, MapPin } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "Potensi Desa",
-  description: "Potensi pertanian, wisata, dan kerajinan Desa Tanjungsari, Kecamatan Jenangan.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "Potensi Desa",
+    description: `Potensi pertanian, wisata, dan kerajinan Desa ${village.villageName}, Kecamatan ${village.districtName}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function PotensiDesaPage() {
-  const items = await prisma.potensiDesa.findMany({ where: { isActive: true }, orderBy: { order: "asc" } });
+  const [items, village] = await Promise.all([
+    prisma.potensiDesa.findMany({ where: { isActive: true }, orderBy: { order: "asc" } }),
+    getVillageInfo(),
+  ]);
 
   return (
     <div className="container-app section-y">
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Potensi Desa</h1>
         <p className="mt-3 text-muted-foreground">
-          Kekayaan alam, wisata, dan produk unggulan Desa Tanjungsari.
+          Kekayaan alam, wisata, dan produk unggulan Desa {village.villageName}.
         </p>
       </header>
 

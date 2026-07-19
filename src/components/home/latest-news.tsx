@@ -6,13 +6,17 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SectionHeading } from "@/components/home/announcements";
 import { formatDate, truncate } from "@/lib/utils";
+import { getVillageInfo } from "@/lib/village";
 
 export async function LatestNews() {
-  const news = await prisma.berita.findMany({
-    where: { status: "PUBLISHED" },
-    orderBy: { publishedAt: "desc" },
-    take: 4,
-  });
+  const [news, village] = await Promise.all([
+    prisma.berita.findMany({
+      where: { status: "PUBLISHED" },
+      orderBy: { publishedAt: "desc" },
+      take: 4,
+    }),
+    getVillageInfo(),
+  ]);
 
   if (news.length === 0) return null;
 
@@ -22,7 +26,7 @@ export async function LatestNews() {
         <SectionHeading
           icon={<Newspaper className="h-5 w-5" />}
           title="Berita Terbaru"
-          subtitle="Kabar dan informasi seputar Desa Tanjungsari"
+          subtitle={`Kabar dan informasi seputar Desa ${village.villageName}`}
           href="/berita"
         />
 

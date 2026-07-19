@@ -5,26 +5,33 @@ import { FileText, Clock, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "Layanan Desa",
-  description: "Daftar layanan administrasi dan publik Desa Tanjungsari beserta syarat dan prosedurnya.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "Layanan Desa",
+    description: `Daftar layanan administrasi dan publik Desa ${village.villageName} beserta syarat dan prosedurnya.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function LayananPage() {
-  const services = await prisma.layanan.findMany({
-    where: { isActive: true },
-    orderBy: { order: "asc" },
-  });
+  const [services, village] = await Promise.all([
+    prisma.layanan.findMany({
+      where: { isActive: true },
+      orderBy: { order: "asc" },
+    }),
+    getVillageInfo(),
+  ]);
 
   return (
     <div className="container-app section-y">
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Layanan Desa</h1>
         <p className="mt-3 text-muted-foreground">
-          Semua layanan administrasi yang bisa diakses warga Desa Tanjungsari.
+          Semua layanan administrasi yang bisa diakses warga Desa {village.villageName}.
         </p>
       </header>
 

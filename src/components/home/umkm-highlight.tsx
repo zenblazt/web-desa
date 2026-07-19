@@ -5,12 +5,16 @@ import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SectionHeading } from "@/components/home/announcements";
+import { getVillageInfo } from "@/lib/village";
 
 export async function UmkmHighlight() {
-  const items = await prisma.umkm.findMany({
-    where: { isActive: true, isFeatured: true },
-    take: 4,
-  });
+  const [items, village] = await Promise.all([
+    prisma.umkm.findMany({
+      where: { isActive: true, isFeatured: true },
+      take: 4,
+    }),
+    getVillageInfo(),
+  ]);
 
   if (items.length === 0) return null;
 
@@ -20,7 +24,7 @@ export async function UmkmHighlight() {
         <SectionHeading
           icon={<Store className="h-5 w-5" />}
           title="UMKM Unggulan"
-          subtitle="Produk & jasa terbaik dari warga Desa Tanjungsari"
+          subtitle={`Produk & jasa terbaik dari warga Desa ${village.villageName}`}
           href="/umkm"
         />
 

@@ -2,22 +2,29 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { Images } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getVillageInfo } from "@/lib/village";
 
-export const metadata: Metadata = {
-  title: "Galeri Desa",
-  description: "Dokumentasi foto kegiatan dan keindahan Desa Tanjungsari.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const village = await getVillageInfo();
+  return {
+    title: "Galeri Desa",
+    description: `Dokumentasi foto kegiatan dan keindahan Desa ${village.villageName}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function GaleriPage() {
-  const photos = await prisma.galeri.findMany({ orderBy: { order: "asc" } });
+  const [photos, village] = await Promise.all([
+    prisma.galeri.findMany({ orderBy: { order: "asc" } }),
+    getVillageInfo(),
+  ]);
 
   return (
     <div className="container-app section-y">
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Galeri Desa</h1>
-        <p className="mt-3 text-muted-foreground">Momen dan kegiatan warga Desa Tanjungsari.</p>
+        <p className="mt-3 text-muted-foreground">Momen dan kegiatan warga Desa {village.villageName}.</p>
       </header>
 
       {photos.length === 0 ? (
